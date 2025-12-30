@@ -256,10 +256,12 @@ export default function HomePage() {
                   <CardDescription>{poc.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-4 p-3 bg-muted/50 rounded-md border-l-2 border-primary">
-                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Key Question:</p>
-                    <p className="text-sm font-medium">{poc.objective.split(".")[0]}?</p>
-                  </div>
+                  {poc.keyQuestion && (
+                    <div className="mb-4 p-3 bg-muted/50 rounded-md border-l-2 border-primary">
+                      <p className="text-xs font-medium text-muted-foreground mb-1.5">Key Question:</p>
+                      <p className="text-sm font-medium">{poc.keyQuestion}</p>
+                    </div>
+                  )}
                   <div className="mb-4">
                     <p className="text-sm font-medium text-muted-foreground mb-1">Focus Areas:</p>
                     <p className="text-sm">{poc.focus}</p>
