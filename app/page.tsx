@@ -43,23 +43,27 @@ export default function HomePage() {
           <section>
             <h2>The Game</h2>
             <p>
-              Payday meets Tarkov, but the cops are superheroes. You&apos;re
-              corporate mercenaries in a fractured megacity. Every job sounds
-              simple: get in, hit objectives, get out. The dilemma:{" "}
-              <strong>quiet and safe, or loud and profitable?</strong>
+              Echelon is a co-op heist game where you and a partner are
+              corporate mercenaries in a megacity where superheroes work for the
+              highest bidder. Every job presents the same dilemma: go quiet and
+              stay safe, or go loud and get rich. The walls aren&apos;t
+              obstacles—they&apos;re shortcuts you can blow open, if you&apos;re
+              willing to pay the price. Make too much noise and a superpowered
+              enforcer crashes through to stop you.
             </p>
             <p>
               Every tool costs money you can&apos;t afford to lose. Every noise
-              draws attention you can&apos;t afford. The environment isn&apos;t
-              backdrop—it&apos;s your toolkit. Three strikes and you&apos;re
-              fired.
+              draws attention you can&apos;t afford. Three failed missions and
+              you&apos;re fired—new operator, empty wallet, start over. It&apos;s
+              a game about desperate improvisation: the moment your careful plan
+              meets chaotic physics and you have to decide what to do next.
             </p>
             <div className="not-prose mt-4">
               <Link
                 href="/docs/gdd"
                 className="group inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 hover:underline"
               >
-                View GDD <ArrowUpRight className="size-3" />
+                Read the full GDD <ArrowUpRight className="size-3" />
               </Link>
             </div>
           </section>
