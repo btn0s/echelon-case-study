@@ -1,26 +1,30 @@
+"use client";
+
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft } from "lucide-react";
 import { getPOCBySlug, getPOCNavigation } from "@/lib/pocs";
+import { usePathname } from "next/navigation";
 
-interface POCLayoutProps {
-  slug: string;
-  children: React.ReactNode;
-}
-
-export function POCLayout({ slug, children }: POCLayoutProps) {
-  const poc = getPOCBySlug(slug);
-  if (!poc) {
-    throw new Error(`POC with slug "${slug}" not found`);
-  }
-
-  const navigation = getPOCNavigation(slug);
+export function POCLayoutContent({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  
+  // Extract slug from pathname (e.g., "/poc/1-destruction-multiplayer" -> "1-destruction-multiplayer")
+  const slug = pathname.split("/poc/")[1]?.split("/")[0] || "";
+  
+  const poc = slug ? getPOCBySlug(slug) : null;
+  const navigation = slug ? getPOCNavigation(slug) : { prev: null, next: null };
+  
   const statusColors = {
     pending: "secondary",
     "in-progress": "default",
     complete: "default",
   } as const;
+
+  if (!poc) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="min-h-screen bg-background">

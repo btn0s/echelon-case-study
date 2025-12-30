@@ -2,12 +2,29 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { POCS } from "@/lib/pocs";
+import {
+  QUESTIONS,
+  getQuestionsByCategory,
+  getQuestionsByPillar,
+  type Question,
+} from "@/lib/caseStudy/questions";
 
 export default function HomePage() {
   const completedCount = POCS.filter((poc) => poc.status === "complete").length;
   const inProgressCount = POCS.filter((poc) => poc.status === "in-progress").length;
   const totalPOCs = POCS.length;
   const progressPercentage = Math.round((completedCount / totalPOCs) * 100);
+
+  // Calculate question coverage
+  const answeredQuestions = new Set<string>();
+  POCS.forEach((poc) => {
+    if (poc.status === "complete" && poc.questionIds) {
+      poc.questionIds.forEach((qId) => answeredQuestions.add(qId));
+    }
+  });
+  const totalQuestions = QUESTIONS.length;
+  const answeredCount = answeredQuestions.size;
+  const questionCoveragePercentage = Math.round((answeredCount / totalQuestions) * 100);
 
   return (
     <div className="min-h-screen bg-background">
@@ -43,7 +60,9 @@ export default function HomePage() {
             </p>
             <p>
               This case study documents our journey through nine Proof of Concept prototypes, each designed
-              to answer a specific question: <em>Does this mechanic actually work?</em>
+              to answer specific questions from our canonical question bank. We've identified{" "}
+              <strong>{totalQuestions} critical questions</strong> we must answer to pull off the GDD—and
+              we're tracking which ones each POC addresses.
             </p>
           </div>
         </section>
@@ -102,9 +121,14 @@ export default function HomePage() {
               technical challenge is solvable—and fun.
             </p>
             <p>
-              This isn't just about technical validation. It's about answering questions like: <em>Does heat
-              create tension or frustration? Do co-op objectives actually require cooperation? Can economic
-              pressure feel meaningful, not punitive?</em>
+              This isn't just about technical validation. It's about answering questions systematically. We've
+              identified {totalQuestions} questions we must answer to validate the GDD, and each POC is
+              responsible for answering a specific subset.
+            </p>
+            <p>
+              Each prototype follows a consistent template: <strong>Hypothesis → Experiment → Results →
+              Decision</strong>. We document what we're trying to prove, how we test it, what we learned, and
+              what we decided—including what's still open.
             </p>
             <p>
               Each prototype stands alone as a demonstrable proof of concept. Together, they form a complete
@@ -293,58 +317,101 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Key Questions */}
+        {/* Question Coverage Dashboard */}
         <section className="mb-16">
-          <h2 className="text-xl font-semibold mb-3">Key Questions We're Answering</h2>
+          <h2 className="text-xl font-semibold mb-3">Question Coverage</h2>
+          <Card className="mb-4">
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Questions Answered</span>
+                  <span className="font-medium">
+                    {answeredCount} / {totalQuestions} Questions
+                  </span>
+                </div>
+                <div className="w-full bg-muted rounded-full h-2">
+                  <div
+                    className="bg-primary h-2 rounded-full transition-all"
+                    style={{ width: `${questionCoveragePercentage}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Each POC answers specific questions from our canonical question bank. Questions are marked as
+                  answered when their related POC is complete.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Technical Challenges</CardTitle>
+                <CardTitle>Core Loop Questions</CardTitle>
+                <CardDescription>
+                  {getQuestionsByCategory("core-loop").length} questions about mission flow and player experience
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>Which physics engine handles multiplayer destruction best?</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>How do we sync destruction state reliably across clients?</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>What pathfinding approach works best for AI guards?</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>Can we achieve acceptable performance with 6+ guards?</span>
-                  </li>
+                  {getQuestionsByCategory("core-loop").slice(0, 4).map((q) => {
+                    const isAnswered = answeredQuestions.has(q.id);
+                    const poc = POCS.find((p) => p.questionIds?.includes(q.id));
+                    return (
+                      <li key={q.id} className="flex items-start gap-2">
+                        <span className={isAnswered ? "text-green-500" : "text-muted-foreground"}>
+                          {isAnswered ? "✓" : "○"}
+                        </span>
+                        <span className={isAnswered ? "" : "text-muted-foreground"}>
+                          {q.text}
+                          {poc && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              (POC {poc.id})
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
+                {getQuestionsByCategory("core-loop").length > 4 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    +{getQuestionsByCategory("core-loop").length - 4} more
+                  </p>
+                )}
               </CardContent>
             </Card>
+
             <Card>
               <CardHeader>
-                <CardTitle>Design Questions</CardTitle>
+                <CardTitle>Pillar Questions</CardTitle>
+                <CardDescription>
+                  {getQuestionsByCategory("pillar").length} questions about core design pillars
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>Does heat escalation feel fair or frustrating?</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>Do co-op objectives create real cooperation?</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>Can economic pressure feel meaningful, not punitive?</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-muted-foreground">•</span>
-                    <span>Does the Super encounter feel exciting or annoying?</span>
-                  </li>
-                </ul>
+                <div className="space-y-3 text-sm">
+                  {(["desperation", "consequence", "cooperation", "chaos", "stakes"] as const).map((pillar) => {
+                    const pillarQuestions = getQuestionsByPillar(pillar);
+                    if (pillarQuestions.length === 0) return null;
+                    const answered = pillarQuestions.filter((q) => answeredQuestions.has(q.id)).length;
+                    return (
+                      <div key={pillar}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium capitalize">{pillar}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {answered} / {pillarQuestions.length}
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-1">
+                          <div
+                            className="bg-primary h-1 rounded-full"
+                            style={{ width: `${Math.round((answered / pillarQuestions.length) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -446,14 +513,9 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Complete game design document outlining core mechanics, systems, and vision
                 </p>
-                <a
-                  href="/GDD.md"
-                  className="text-sm font-medium text-primary hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <Link href="/gdd" className="text-sm font-medium text-primary hover:underline">
                   View GDD →
-                </a>
+                </Link>
               </CardContent>
             </Card>
             <Card>
@@ -464,10 +526,7 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Detailed development strategy and POC breakdown
                 </p>
-                <Link
-                  href="/.cursor/plans/echelon_strategic_roadmap.md"
-                  className="text-sm font-medium text-primary hover:underline"
-                >
+                <Link href="/roadmap" className="text-sm font-medium text-primary hover:underline">
                   View Roadmap →
                 </Link>
               </CardContent>

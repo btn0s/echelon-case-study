@@ -1,163 +1,113 @@
-import { POCLayout } from "@/components/poc/POCLayout";
+
+import { POCSection } from "@/components/poc/POCSection";
+import { POCCallout } from "@/components/poc/POCCallout";
+import { POCQuestionList } from "@/components/poc/POCQuestionList";
+import { getPOCBySlug } from "@/lib/pocs";
+import { getQuestionById } from "@/lib/caseStudy/questions";
 
 export default function POC5Page() {
+  const poc = getPOCBySlug("5-economy");
+  const questions = poc?.questionIds
+    ? poc.questionIds.map((id) => getQuestionById(id)).filter((q): q is NonNullable<typeof q> => q !== undefined)
+    : [];
+
   return (
-    <POCLayout slug="5-economy">
-      <h2>GDD Mapping</h2>
-      <p>This POC validates:</p>
-      <ul>
-        <li>Core System #4: Economic Pressure (GDD lines 74-101)</li>
-        <li>Credit Economy table (GDD lines 77-83) - Objective +100, Extraction +200, Stealth bonus +100, Speed bonus +50</li>
-        <li>Loadout Options (GDD lines 84-96) - Stealth 200, Assault 275, Demolition 325</li>
-        <li>Failure System (GDD lines 97-101) - Strike 1 warning, Strike 2 +25% costs, Strike 3 FIRED</li>
-        <li>Core Fantasy: Desperation and Stakes pillars</li>
-        <li>Mission Flow: Pre-Mission - "The Dilemma" (GDD lines 130-131)</li>
-      </ul>
+    <>
+      <POCSection title="TL;DR">
+        <p>
+          We're validating that economic constraints create interesting choices without feeling punitive. Can
+          players make an agonizing loadout choice with only ~200 credits? Current status:{" "}
+          <strong>{poc?.status || "pending"}</strong>.
+        </p>
+      </POCSection>
 
-      <h2>Why This Needs a POC</h2>
-      <p>
-        Every tool costs money you don't have. This needs validation because:
-      </p>
-      <ul>
-        <li>Economic constraints can create frustration if too restrictive</li>
-        <li>Loadout choices need to feel meaningful, not arbitrary</li>
-        <li>3-strike failure system needs to feel fair but consequential</li>
-        <li>Credit balance affects replayability and progression feel</li>
-      </ul>
+      <POCSection title="Key Questions">
+        <POCQuestionList questions={questions} showWhy={true} />
+      </POCSection>
 
-      <h2>Goals</h2>
-      <ul>
-        <li>Implement credit tracking system (server-side)</li>
-        <li>Create pre-mission loadout shop</li>
-        <li>Design three loadout options (Stealth 200, Assault 275, Demolition 325)</li>
-        <li>Implement credit rewards from objectives</li>
-        <li>Build 3-strike failure tracking system</li>
-        <li>Test persistence between missions</li>
-        <li>Validate economic constraints create interesting choices</li>
-      </ul>
+      <POCSection title="Hypothesis">
+        <p>
+          GDD-specified credit values (starting ~200, rewards +100/+200) create meaningful loadout choices.
+          Three-strike failure system creates dramatic stakes without feeling punitive. Strike 2 (+25% costs)
+          meaningfully changes player behavior.
+        </p>
+      </POCSection>
 
-      <h2>Key Questions</h2>
-      <h3>Credit Balance</h3>
-      <ul>
-        <li>What's the right starting credit amount?</li>
-        <li>Are reward values balanced? (Objective +100, Extraction +200, Stealth bonus +100, Speed bonus +50)</li>
-        <li>Are loadout costs appropriate? (Stealth 200, Assault 275, Demolition 325)</li>
-        <li>Should credits persist between sessions?</li>
-      </ul>
+      <POCSection title="Experiment Design">
+        <p>
+          Create pre-mission shop with three loadout options. We'll test:
+        </p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Credit balance and rewards</li>
+          <li>Loadout choice difficulty</li>
+          <li>3-strike failure system impact</li>
+          <li>Persistence between missions</li>
+        </ul>
+        <POCCallout variant="info" className="mt-4">
+          <strong>Validation method:</strong> Players face loadout choices with limited credits. Do they
+          deliberate? After failures, do they want to retry? Does Strike 2 change behavior?
+        </POCCallout>
+      </POCSection>
 
-      <h3>3-Strike System</h3>
-      <ul>
-        <li>Does Strike 1 warning create enough tension?</li>
-        <li>Is Strike 2 (+25% equipment costs) impactful?</li>
-        <li>Does Strike 3 (fired, reset) feel fair or too harsh?</li>
-        <li>Should strikes reset after success, or only on failure?</li>
-      </ul>
+      <POCSection title="Instrumentation">
+        <p>What we're measuring:</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Loadout choice time</li>
+          <li>Credit balance after missions</li>
+          <li>Retry rate after failures</li>
+          <li>Behavior changes at Strike 2</li>
+        </ul>
+      </POCSection>
 
-      <h3>Loadout Choices</h3>
-      <ul>
-        <li>Do the three loadouts create distinct playstyles?</li>
-        <li>Are loadout costs balanced with their effectiveness?</li>
-        <li>Do players want to optimize loadouts based on strategy?</li>
-      </ul>
+      <POCSection title="Results">
+        <POCCallout variant="warning">
+          <em>This section will be updated as we implement the POC.</em>
+        </POCCallout>
+        <h3 className="text-lg font-semibold mt-4 mb-2">Success Criteria</h3>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Economic constraints create interesting decisions</li>
+          <li>Loadout choices feel meaningful</li>
+          <li>Failure feels consequential but not punitive</li>
+          <li>Players want to optimize loadouts based on strategy</li>
+          <li>Credit balance supports replayability</li>
+        </ul>
+      </POCSection>
 
-      <h2>Loadout Options</h2>
-      <h3>STEALTH (200 credits)</h3>
-      <ul>
-        <li>Suppressed Pistol (75): Quiet, weak damage</li>
-        <li>Lockpicks (50): Silent door/vault access</li>
-        <li>Smoke Grenades (75): Concealment, no damage</li>
-      </ul>
+      <POCSection title="Decision">
+        <POCCallout variant="warning">
+          <em>This section will document our decision once we complete the POC.</em>
+        </POCCallout>
+        <p>
+          Once we complete testing, we'll document: final credit values, loadout costs, and strike system
+          tuning.
+        </p>
+      </POCSection>
 
-      <h3>ASSAULT (275 credits)</h3>
-      <ul>
-        <li>Assault Rifle (125): Loud, high damage</li>
-        <li>Frag Grenades (100): AoE damage, loud</li>
-        <li>Body Armor (50): Survive more hits</li>
-      </ul>
+      <POCSection title="Open Questions">
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Should credits persist between sessions?</li>
+          <li>Do strikes reset after success or only on failure?</li>
+          <li>Are loadout costs balanced with effectiveness?</li>
+        </ul>
+      </POCSection>
 
-      <h3>DEMOLITION (325 credits)</h3>
-      <ul>
-        <li>Shotgun (75): Close range, moderate noise</li>
-        <li>Explosives (200): Instant destruction, very loud</li>
-        <li>Breaching Charges (50): Quiet destruction</li>
-      </ul>
-
-      <h2>Credit Economy</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Source</th>
-            <th>Credits</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Completed objective</td>
-            <td>+100</td>
-          </tr>
-          <tr>
-            <td>Extraction bonus</td>
-            <td>+200</td>
-          </tr>
-          <tr>
-            <td>Stealth bonus (Heat &lt; 50)</td>
-            <td>+100</td>
-          </tr>
-          <tr>
-            <td>Speed bonus (&lt; 8 min)</td>
-            <td>+50</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h2>Failure System</h2>
-      <ul>
-        <li><strong>Strike 1</strong>: Warning message</li>
-        <li><strong>Strike 2</strong>: All equipment costs +25%</li>
-        <li><strong>Strike 3</strong>: FIRED — restart with new operator, lose all credits</li>
-      </ul>
-
-      <h2>Implementation</h2>
-      <p>
-        <em>This section will be updated as we implement the POC.</em>
-      </p>
-
-      <h2>Results & Learnings</h2>
-      <p>
-        <em>This section will document what we learned during implementation.</em>
-      </p>
-
-      <h3>Success Criteria</h3>
-      <ul>
-        <li>Economic constraints create interesting decisions</li>
-        <li>Loadout choices feel meaningful</li>
-        <li>Failure feels consequential but not punitive</li>
-        <li>Players want to optimize loadouts based on strategy</li>
-        <li>Credit balance supports replayability</li>
-      </ul>
-
-      <h2>Integration Points</h2>
-      <p>This POC connects to:</p>
-      <ul>
-        <li>
-          <strong>POC 4: Co-op Objectives</strong> - Completed objectives reward credits (+100 each)
-        </li>
-        <li>
-          <strong>POC 2: Heat System</strong> - Stealth bonus (Heat &lt; 50) rewards +100 credits
-        </li>
-        <li>
-          <strong>POC 7: Mission Flow</strong> - Pre-mission shop and credit rewards
-        </li>
-        <li>
-          <strong>POC 1: Destruction</strong> - Equipment costs affect destruction strategy (Explosives 200, Breaching Charges 100)
-        </li>
-      </ul>
-
-      <h2>Next Steps</h2>
-      <p>
-        With economy established, we'll create <strong>POC 6: Super Encounter</strong> for the
-        dramatic climax moment when heat hits 100.
-      </p>
-    </POCLayout>
+      <POCSection title="Integration Notes">
+        <p>This POC connects to:</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>
+            <strong>POC 4: Co-op Objectives</strong> - Completed objectives reward credits (+100 each)
+          </li>
+          <li>
+            <strong>POC 2: Heat System</strong> - Stealth bonus (Heat &lt; 50) rewards +100 credits
+          </li>
+          <li>
+            <strong>POC 7: Mission Flow</strong> - Pre-mission shop and credit rewards
+          </li>
+          <li>
+            <strong>POC 1: Destruction</strong> - Equipment costs affect destruction strategy
+          </li>
+        </ul>
+      </POCSection>
+    </>
   );
 }

@@ -1,131 +1,118 @@
-import { POCLayout } from "@/components/poc/POCLayout";
+import { POCSection } from "@/components/poc/POCSection";
+import { POCCallout } from "@/components/poc/POCCallout";
+import { POCQuestionList } from "@/components/poc/POCQuestionList";
+import { getPOCBySlug } from "@/lib/pocs";
+import { getQuestionById } from "@/lib/caseStudy/questions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "POC 1: Destruction as Strategy | Echelon Case Study",
+  description:
+    "Prove destructible environment works in multiplayer context with physics engine integration and state synchronization.",
+};
 
 export default function POC1Page() {
+  const poc = getPOCBySlug("1-destruction-multiplayer");
+  const questions = poc?.questionIds
+    ? poc.questionIds.map((id) => getQuestionById(id)).filter((q): q is NonNullable<typeof q> => q !== undefined)
+    : [];
+
   return (
-    <POCLayout slug="1-destruction-multiplayer">
-      <h2>GDD Mapping</h2>
-      <p>This POC validates:</p>
-      <ul>
-        <li>Core System #1: Destruction as Strategy (GDD lines 28-42)</li>
-        <li>Player Tools table (GDD lines 37-41) - Explosives, Breaching Charges, Environmental</li>
-        <li>Mission Flow: Execution - "Plans meet physics" (GDD line 134)</li>
-        <li>Core Fantasy: Chaos pillar - "Physics turns careful plans into desperate improvisation"</li>
-      </ul>
+    <>
+      <POCSection title="TL;DR">
+        <p>
+          We're validating that destruction can feel strategic and sync reliably across multiple players.
+          Can we make the environment feel like a toolkit, not just backdrop? Current status:{" "}
+          <strong>{poc?.status || "pending"}</strong>.
+        </p>
+      </POCSection>
 
-      <h2>Why This Needs a POC</h2>
-      <p>
-        Destruction is a core pillar of Echelon's gameplay, but syncing destruction state across
-        multiple clients is complex. We need to validate:
-      </p>
-      <ul>
-        <li>Which physics engine handles multiplayer sync best?</li>
-        <li>How do we handle destruction state authority (server vs client)?</li>
-        <li>What's the right destruction granularity (voxel, chunks, pre-broken)?</li>
-        <li>How do we clean up debris without performance hits?</li>
-        <li>Can two players destroy simultaneously without desync?</li>
-      </ul>
+      <POCSection title="Key Questions">
+        <POCQuestionList questions={questions} showWhy={true} />
+      </POCSection>
 
-      <h2>Goals</h2>
-      <ul>
-        <li>Integrate physics engine (Cannon.js or Rapier)</li>
-        <li>Create destructible wall components</li>
-        <li>Implement destruction triggers (explosives, impacts)</li>
-        <li>Sync destruction state across multiple clients</li>
-        <li>Test performance with simultaneous destructions</li>
-        <li>Implement debris cleanup strategy</li>
-        <li>Compare physics engines if time permits</li>
-      </ul>
+      <POCSection title="Hypothesis">
+        <p>
+          Destruction can feel strategic (readable, controllable) and sync reliably across multiple clients
+          using event-based synchronization. Pre-broken chunks provide the best balance of performance and
+          gameplay feel for our demo scope.
+        </p>
+      </POCSection>
 
-      <h2>Key Questions</h2>
-      <h3>Physics Engine Choice</h3>
-      <ul>
-        <li><strong>Cannon.js</strong>: Mature, good docs, works well with R3F</li>
-        <li><strong>Rapier</strong>: More modern, better performance, Rust-based</li>
-      </ul>
+      <POCSection title="Experiment Design">
+        <p>
+          Create a minimal test scenario: a single room with destructible walls. Two players can trigger
+          destruction via explosives or impacts. We'll test:
+        </p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Physics engine integration (Cannon.js vs Rapier)</li>
+          <li>Destruction granularity (voxel vs chunks vs pre-broken)</li>
+          <li>State synchronization approach (event-based vs snapshot)</li>
+          <li>Performance with simultaneous destructions</li>
+          <li>Debris cleanup strategy</li>
+        </ul>
+        <POCCallout variant="info" className="mt-4">
+          <strong>Validation method:</strong> Two players destroy walls simultaneously. Do both see the same
+          result? Does it feel satisfying? Does performance remain acceptable?
+        </POCCallout>
+      </POCSection>
 
-      <h3>Destruction Approach</h3>
-      <ul>
-        <li><strong>Voxel-based</strong>: High detail, complex physics</li>
-        <li><strong>Mesh cutting</strong>: Dynamic but computationally expensive</li>
-        <li><strong>Pre-broken chunks</strong>: Performance-friendly, less dynamic</li>
-      </ul>
+      <POCSection title="Instrumentation">
+        <p>What we're measuring:</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Frame rate during destruction events</li>
+          <li>Network message count and size</li>
+          <li>State consistency checks (do clients agree on world state?)</li>
+          <li>Player feedback (does destruction feel satisfying?)</li>
+        </ul>
+      </POCSection>
 
-      <h3>State Synchronization</h3>
-      <ul>
-        <li><strong>Event-based</strong>: Server broadcasts destruction events</li>
-        <li><strong>State snapshot</strong>: Periodic full state sync</li>
-        <li><strong>Deterministic physics</strong>: Same seed/timestep on all clients</li>
-      </ul>
+      <POCSection title="Results">
+        <POCCallout variant="warning">
+          <em>This section will be updated as we implement the POC.</em>
+        </POCCallout>
+        <h3 className="text-lg font-semibold mt-4 mb-2">Success Criteria</h3>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Two players can destroy walls and see changes sync smoothly</li>
+          <li>Destruction feels satisfying</li>
+          <li>Performance remains acceptable with multiple destructions</li>
+          <li>State stays consistent across clients</li>
+          <li>No visible desync issues</li>
+        </ul>
+      </POCSection>
 
-      <h2>Implementation</h2>
-      <p>
-        <em>This section will be updated as we implement the POC.</em>
-      </p>
+      <POCSection title="Decision">
+        <POCCallout variant="warning">
+          <em>This section will document our decision once we complete the POC.</em>
+        </POCCallout>
+        <p>
+          Once we complete testing, we'll document: which physics engine we chose and why, what destruction
+          granularity works best, and how we're syncing state.
+        </p>
+      </POCSection>
 
-      <h3>Technical Decisions</h3>
-      <ul>
-        <li>TBD: Physics engine choice</li>
-        <li>TBD: Destruction granularity</li>
-        <li>TBD: State sync approach</li>
-        <li>TBD: Debris cleanup strategy</li>
-      </ul>
+      <POCSection title="Open Questions">
+        <ul className="list-disc pl-6 space-y-1">
+          <li>Should destruction be deterministic or event-based?</li>
+          <li>How do we handle destruction that happens during network lag?</li>
+          <li>What's the minimum destructible set for the demo?</li>
+        </ul>
+      </POCSection>
 
-      <h2>Results & Learnings</h2>
-      <p>
-        <em>This section will document what we learned during implementation.</em>
-      </p>
-
-      <h3>Success Criteria</h3>
-      <ul>
-        <li>Two players can destroy walls and see changes sync smoothly</li>
-        <li>Destruction feels satisfying</li>
-        <li>Performance remains acceptable with multiple destructions</li>
-        <li>State stays consistent across clients</li>
-        <li>No visible desync issues</li>
-      </ul>
-
-      <h3>What Worked</h3>
-      <ul>
-        <li>TBD</li>
-      </ul>
-
-      <h3>What Didn't Work</h3>
-      <ul>
-        <li>TBD</li>
-      </ul>
-
-      <h3>Key Insights</h3>
-      <ul>
-        <li>TBD</li>
-      </ul>
-
-      <h2>Code Examples</h2>
-      <p>
-        <em>Key code patterns and snippets will be documented here.</em>
-      </p>
-
-      <h2>Integration Points</h2>
-      <p>This POC connects to:</p>
-      <ul>
-        <li>
-          <strong>POC 0: Multiplayer Foundation</strong> - Destruction state must sync across clients
-        </li>
-        <li>
-          <strong>POC 2: Heat System</strong> - Destruction events trigger heat (explosions +35, wall breaking +25)
-        </li>
-        <li>
-          <strong>POC 3: AI Guards</strong> - Guards investigate destruction sites
-        </li>
-        <li>
-          <strong>POC 6: Super Encounter</strong> - Super breaks through walls, creating new paths
-        </li>
-      </ul>
-
-      <h2>Next Steps</h2>
-      <p>
-        Once destruction and multiplayer sync are proven, we'll move to <strong>POC 2: Heat as Consequence</strong>,
-        which will trigger based on destruction events (explosions, breaking walls).
-      </p>
-    </POCLayout>
+      <POCSection title="Integration Notes">
+        <p>This POC enables:</p>
+        <ul className="list-disc pl-6 space-y-1">
+          <li>
+            <strong>POC 2: Heat System</strong> - Destruction events trigger heat (explosions +35, wall breaking +25)
+          </li>
+          <li>
+            <strong>POC 3: AI Guards</strong> - Guards investigate destruction sites
+          </li>
+          <li>
+            <strong>POC 6: Super Encounter</strong> - Super breaks through walls, creating new paths
+          </li>
+        </ul>
+      </POCSection>
+    </>
   );
 }
