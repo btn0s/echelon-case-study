@@ -1,0 +1,216 @@
+# Echelon — Game Design Document
+
+Elevator Pitch: Co-op heist game where careful plans meet cartoon physics and desperate people make impossible choices under superhero-level pressure.
+The Hook: "Payday meets Tarkov, but the cops are superheroes and your demolition expert just blew a hole in the wrong wall."
+
+## Core Fantasy
+
+You're Operators from the Echelon Group — corporate mercenaries taking contracts in a fractured megacity. Every job is simple on paper: get in, complete objectives, get out.
+Your squad faces a constant dilemma: quiet and safe, or loud and profitable?
+
+- Every tool you bring costs money you can't afford to lose
+- Every noise you make draws attention you can't afford to get
+- Every objective you skip is credits you can't afford to miss
+- Fail three missions? You're fired. New operator, empty wallet, start over.
+
+## Key Pillars
+
+| Pillar      | Description                                              |
+| ----------- | -------------------------------------------------------- |
+| Desperation | Every tool costs money you don't have                    |
+| Consequence | Every noise draws attention you can't afford             |
+| Cooperation | Your teammate is your lifeline, not just extra firepower |
+| Chaos       | Physics turns careful plans into desperate improvisation |
+| Stakes      | Three failures and you're fired (permanent consequences) |
+
+## The Four Core Systems
+
+### 1. Destruction as Strategy
+
+The environment isn't backdrop — it's your toolkit.
+
+- Walls can be blown open for shortcuts or escape routes
+- Floors can be destroyed to reach new areas
+- Destruction is loud, expensive, and permanent
+- Chain reactions turn small mistakes into big problems
+  Player Tools:
+  | Tool | Cost | Effect | Heat |
+  |------|------|--------|------|
+  | Explosives | 200 | Instant wall destruction | +50 |
+  | Breaching Charges | 100 | Quiet wall destruction, slow | +10 |
+  | Environmental | Free | Shoot barrels, physics interactions | Varies |
+
+### 2. Heat as Consequence
+
+Volume equals attention. The louder you are, the harder the world pushes back.
+Heat Scale (0-100):
+| Range | State | Response |
+|-------|-------|----------|
+| 0-25 | Patrol | 2 guards, slow movement, predictable routes |
+| 25-50 | Alert | 4 guards, investigate noises, faster movement |
+| 50-75 | Alarmed | 6 guards, active hunting, reinforcements |
+| 75-100 | SUPER | Boss spawns, all guards aggressive |
+Heat Sources:
+Footsteps (5m radius): +1 Heat
+Suppressed Shot (15m): +5 Heat
+Gunshot (50m): +15 Heat
+Breaking Wall (75m): +25 Heat
+Explosion (100m): +35 Heat
+Heat Decay: -1 per second when no guards investigating
+
+### 3. Dynamic Co-op Objectives
+
+Objectives aren't just tasks — they're dilemmas designed to split your team's attention.
+Primary Objective (Required):
+
+- Hack central terminal (10 second channel, both players vulnerable)
+  Secondary Objectives (Optional, +credits):
+  | Objective | Loud Path | Quiet Path |
+  |-----------|-----------|------------|
+  | Vault Access | Explosives | Lockpicks + 30 seconds |
+  | Data Extraction | Shoot glass | Find keycard |
+  | Evidence Plant | Destroy floor above | Find stairs |
+
+### 4. Economic Pressure
+
+Every run costs money you don't have to buy gear you can't afford to lose.
+Credit Economy:
+| Source | Credits |
+|--------|---------|
+| Completed objective | +100 |
+| Extraction bonus | +200 |
+| Stealth bonus (Heat < 50) | +100 |
+| Speed bonus (< 8 min) | +50 |
+Loadout Options:
+STEALTH (200 total):
+├─ Suppressed Pistol (75): Quiet, weak damage
+├─ Lockpicks (50): Silent door/vault access
+└─ Smoke Grenades (75): Concealment, no damage
+ASSAULT (275 total):
+├─ Assault Rifle (125): Loud, high damage
+├─ Frag Grenades (100): AoE damage, loud
+└─ Body Armor (50): Survive more hits
+DEMOLITION (325 total):
+├─ Shotgun (75): Close range, moderate noise
+├─ Explosives (200): Instant destruction, very loud
+└─ Breaching Charges (50): Quiet destruction
+Failure System:
+
+- Strike 1: Warning message
+- Strike 2: All equipment costs +25%
+- Strike 3: FIRED — restart with new operator, lose all credits
+
+## The World
+
+A corporate megacity where superheroes work for the highest bidder. You're not fighting evil — you're fighting security. The Supers aren't saving the world — they're protecting assets.
+| District | Character | Threats |
+|----------|-----------|---------|
+| Corporate Zones | Glass towers, armed security | High surveillance, heroes on retainer |
+| Industrial Districts | Maze-like factories | Noise echoes, locals fight dirty |
+| Undercity | Criminal underbelly | No Supers, but gangs do patrol |
+
+## Super Encounters
+
+When Heat hits 100, a Super arrives — an elite, superpowered enforcer.
+Behavior:
+
+- Dramatic entrance (breaks through wall)
+- Chase nearest player
+- Physics knockback attacks
+- Breaks through walls, creating new paths
+- Can be stunned with explosives (3-second stun)
+- Nearly invincible — goal is escape, not defeat
+  Rewards (if killed):
+- Rare tech and loot
+- Reputation
+- Bragging rights
+
+## Mission Flow
+
+Pre-Mission: The Dilemma
+Stare at the equipment shop with 200 credits. The stealth loadout costs 200. The demolition loadout costs 325. You're one strike away from being fired. What do you buy?
+Infiltration: The Plan
+Enter quiet, survey the objectives, make the plan. "I'll hack the terminal, you watch for guards. If things go loud, we blow the wall and extract through the hole."
+Execution: The Reality
+Plans meet physics. The explosive barrel you didn't notice. The wall that collapsed the wrong way. The guard who heard your teammate's footsteps. Heat rises.
+Escalation: The Chaos
+More guards. Locked doors. Emergency lighting. Your careful stealth run becomes a running firefight through the holes you've blown in the architecture.
+Super Encounter: The Terror
+Heat hits 100. Something big crashes through the wall. It's not here to arrest you — it's here to stop you. By any means necessary. Through any wall necessary.
+Extraction: The Choice
+The exit is 50 meters away. Your teammate is down. The Super is between you and them. The credits from this job would buy you both better gear next time. Do you run or risk everything for a rescue?
+
+## Win/Lose Conditions
+
+| Condition                  | Outcome                  |
+| -------------------------- | ------------------------ |
+| Complete primary + extract | Mission Success          |
+| Both players eliminated    | Mission Failure (Strike) |
+| Extraction timer expires   | Mission Failure (Strike) |
+| Mission abandoned          | Mission Failure (Strike) |
+| 3 strikes accumulated      | Career Failure (Reset)   |
+
+## Tone & Style
+
+Visual: Clean corporate minimalism meets slapstick destruction chaos. Pristine glass offices that become cartoon demolition sites. Suited operatives ragdolling through holes they accidentally blew in the wrong wall.
+Audio: Corporate elevator muzak punctuated by spectacular crashes. Whispered tactical communication interrupted by "OH SH—" BOOM.
+References:
+
+- The Incredibles (superhero corp aesthetic)
+- Untitled Goose Game (serious characters, silly situations)
+- Portal (clean corporate hiding chaos)
+
+## Demo Scope (4-Week Target)
+
+What We're Building
+
+- One room with destructible elements (20m x 15m corporate server room)
+- 2 players cooperative
+- One mission type with 2-3 objective variants
+- Heat-driven AI escalation culminating in Super encounter
+- Simple economic system with equipment choices
+- 3-strike failure system
+  Success Criteria
+- Players laugh at physics moments
+- Players feel genuine tension during escalation
+- Players want to "try one more run"
+- Core economic pressure creates meaningful decisions
+  Technical Priority
+  | Week | Focus |
+  |------|-------|
+  | 1 | Multiplayer movement, basic destruction |
+  | 2 | Heat system, AI states, noise detection |
+  | 3 | Super encounter, physics interactions |
+  | 4 | Economic system, UI, polish |
+
+## Future Vision (Beyond Demo)
+
+### Phase 2:
+
+- Multiple room layouts
+- 4-player support
+- Additional equipment types
+- More objective varieties
+
+### Phase 3:
+
+- Multiple districts
+- Super variety (roster with unique powers)
+- Persistent stash, traders, crafting
+- District reputation system
+
+### Long-term:
+
+- Larger districts with multiple squads (PvPvE)
+- Expanded roster of Supers with unique tactics
+
+---
+
+Development Philosophy
+Prototype the interactions, not the features.
+Build the simplest possible version of each system, then focus entirely on how they feel together. Polish the core loop until it's addictive, then add variety.
+The magic isn't in having 50 weapons — it's in making the choice between a suppressed pistol and a shotgun feel agonizing because you can't afford both and the mission depends on picking right.
+
+---
+
+Echelon is about the moment when careful plans meet chaotic physics, and both players have to decide: do we adapt, or do we run?
