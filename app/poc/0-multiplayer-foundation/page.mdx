@@ -14,7 +14,7 @@ Multiplayer networking is the invisible infrastructure that every other system d
 
 ### The Fundamental Problem: Latency
 
-When you press "move forward" on your keyboard, light travels through wires to a server, the server processes your input, and light travels back. Even at the speed of light, this takes time — typically 20-150ms depending on distance. [dive deeper →](https://www.perplexity.ai/search?q=network+latency+in+multiplayer+games+explained)
+When you press "move forward" on your keyboard, light travels through wires to a server, the server processes your input, and light travels back. Even at the speed of light, this takes time — typically 20-150ms depending on distance. <PerplexityLink query="network latency in multiplayer games explained" />
 
 For a single-player game, this is irrelevant. For a multiplayer game, it creates a paradox:
 
@@ -26,15 +26,15 @@ Every multiplayer game in history has had to solve this problem. The solutions a
 
 <LearnMore title="The history of multiplayer networking">
 
-The techniques we use today were pioneered in the 1990s and refined through decades of iteration. [dive deeper →](https://www.perplexity.ai/search?q=history+of+multiplayer+game+networking+quake+half-life)
+The techniques we use today were pioneered in the 1990s and refined through decades of iteration. <PerplexityLink query="history of multiplayer game networking quake half-life" />
 
 **1996: Quake and the birth of client-server**
 
-John Carmack's Quake was one of the first games to implement true client-server architecture over the internet. Before Quake, most multiplayer games used peer-to-peer or LAN-only approaches. Carmack documented his approach in his famous `.plan` files, which became foundational texts for game networking. [dive deeper →](https://www.perplexity.ai/search?q=john+carmack+quake+networking+.plan+files)
+John Carmack's Quake was one of the first games to implement true client-server architecture over the internet. Before Quake, most multiplayer games used peer-to-peer or LAN-only approaches. Carmack documented his approach in his famous `.plan` files, which became foundational texts for game networking. <PerplexityLink query="john carmack quake networking .plan files" />
 
 **1999-2001: Half-Life and lag compensation**
 
-Valve's GoldSrc engine (used for Half-Life, Counter-Strike) introduced sophisticated lag compensation — the server would "rewind time" to check if a player's shot actually hit where they were aiming, accounting for their latency. This made high-ping players competitive. [dive deeper →](https://www.perplexity.ai/search?q=valve+lag+compensation+how+it+works+counter-strike)
+Valve's GoldSrc engine (used for Half-Life, Counter-Strike) introduced sophisticated lag compensation — the server would "rewind time" to check if a player's shot actually hit where they were aiming, accounting for their latency. This made high-ping players competitive. <PerplexityLink query="valve lag compensation how it works counter-strike" />
 
 **2001: Gaffer on Games**
 
@@ -46,7 +46,7 @@ Valve's Source engine (Half-Life 2, Team Fortress 2, Left 4 Dead) refined these 
 
 **2019: GGPO and rollback renaissance**
 
-Fighting games pioneered rollback netcode (predicting inputs rather than waiting for confirmation), and libraries like GGPO made this accessible. While overkill for our co-op game, understanding rollback helps appreciate the tradeoff space. [dive deeper →](https://www.perplexity.ai/search?q=GGPO+rollback+netcode+explained+fighting+games)
+Fighting games pioneered rollback netcode (predicting inputs rather than waiting for confirmation), and libraries like GGPO made this accessible. While overkill for our co-op game, understanding rollback helps appreciate the tradeoff space. <PerplexityLink query="GGPO rollback netcode explained fighting games" />
 
 </LearnMore>
 
@@ -54,11 +54,11 @@ Fighting games pioneered rollback netcode (predicting inputs rather than waiting
 
 ## Understanding the Options
 
-There are three fundamental approaches to multiplayer networking. Each makes different tradeoffs between complexity, consistency, and responsiveness. [dive deeper →](https://www.perplexity.ai/search?q=peer+to+peer+vs+client+server+multiplayer+game+architecture)
+There are three fundamental approaches to multiplayer networking. Each makes different tradeoffs between complexity, consistency, and responsiveness. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
 
 ### Option 1: Peer-to-Peer (P2P)
 
-Every player's machine talks directly to every other player's machine. No central server. [dive deeper →](https://www.perplexity.ai/search?q=peer+to+peer+networking+in+games+pros+cons)
+Every player's machine talks directly to every other player's machine. No central server. <PerplexityLink query="peer to peer networking in games pros cons" />
 
 **How it works:**
 ```
@@ -76,13 +76,13 @@ Player C ←→ Player D
 - N² connections (scales poorly)
 - No authoritative state (who's right when players disagree?)
 - Cheating is trivial (your machine decides what's true)
-- NAT traversal is painful [dive deeper →](https://www.perplexity.ai/search?q=NAT+traversal+hole+punching+multiplayer+games)
+- NAT traversal is painful <PerplexityLink query="NAT traversal hole punching multiplayer games" />
 
 **Used by:** Older fighting games, some indie games, local multiplayer
 
 ### Option 2: Host-Authoritative (Listen Server)
 
-One player's machine acts as both player and server. Other players connect to them. [dive deeper →](https://www.perplexity.ai/search?q=listen+server+host+migration+multiplayer+games)
+One player's machine acts as both player and server. Other players connect to them. <PerplexityLink query="listen server host migration multiplayer games" />
 
 **How it works:**
 ```
@@ -105,7 +105,7 @@ Player B → Host (Player A) ← Player C
 
 ### Option 3: Client-Server (Dedicated Server)
 
-A dedicated server owns the game state. All players are equal clients. [dive deeper →](https://www.perplexity.ai/search?q=dedicated+server+architecture+multiplayer+games)
+A dedicated server owns the game state. All players are equal clients. <PerplexityLink query="dedicated server architecture multiplayer games" />
 
 **How it works:**
 ```
@@ -141,7 +141,7 @@ Player A → Server ← Player B
 
 Echelon needs consistent state for heat systems, AI guards, and objectives. We can't have players seeing different heat levels or objective states. Client-server gives us the foundation to build authoritative game systems.
 
-For development, we'll use a simple WebSocket server. For production, we could use [Hathora](https://hathora.dev/), [Colyseus Cloud](https://colyseus.io/), or self-host. [dive deeper →](https://www.perplexity.ai/search?q=game+server+hosting+options+hathora+colyseus+2024)
+For development, we'll use a simple WebSocket server. For production, we could use [Hathora](https://hathora.dev/), [Colyseus Cloud](https://colyseus.io/), or self-host. <PerplexityLink query="game server hosting options hathora colyseus 2024" />
 
 </Tradeoffs>
 
@@ -153,7 +153,7 @@ Before we start building, we need to internalize three concepts that will guide 
 
 ### Concept 1: Authority
 
-**Authority** means "who is the source of truth for this piece of state?" [dive deeper →](https://www.perplexity.ai/search?q=server+authority+vs+client+authority+multiplayer+games)
+**Authority** means "who is the source of truth for this piece of state?" <PerplexityLink query="server authority vs client authority multiplayer games" />
 
 For critical game state, the server is authoritative:
 - Heat level (POC 2)
@@ -178,13 +178,13 @@ The correct pattern:
 
 The client can show progress UI locally, but the server decides when it's actually done.
 
-[dive deeper on Perplexity →](https://www.perplexity.ai/search?q=why+never+trust+the+client+game+security+cheating)
+<PerplexityLink query="why never trust the client game security cheating" />
 
 </Pitfall>
 
 ### Concept 2: Client-Side Prediction
 
-**Prediction** means the client immediately shows the result of player actions without waiting for server confirmation. [dive deeper →](https://www.perplexity.ai/search?q=client+side+prediction+multiplayer+games+how+it+works)
+**Prediction** means the client immediately shows the result of player actions without waiting for server confirmation. <PerplexityLink query="client side prediction multiplayer games how it works" />
 
 When you press "forward":
 1. **Without prediction:** Press key → wait 100ms → server confirms → you move (feels laggy)
@@ -194,7 +194,7 @@ The catch: sometimes you'll be wrong. The server might say "actually, you collid
 
 <LearnMore title="How prediction actually works">
 
-**The input buffer pattern:** [dive deeper →](https://www.perplexity.ai/search?q=input+buffer+client+prediction+server+reconciliation)
+**The input buffer pattern:** <PerplexityLink query="input buffer client prediction server reconciliation" />
 
 ```typescript
 // Client sends inputs with sequence numbers
@@ -226,7 +226,7 @@ localPlayer.position.add(calculateMovement(input))
 
 ### Concept 3: Interpolation and Snapshots
 
-**Interpolation** is how we make other players (and networked objects) move smoothly despite only receiving updates 20-30 times per second. [dive deeper →](https://www.perplexity.ai/search?q=interpolation+vs+extrapolation+multiplayer+games+networking)
+**Interpolation** is how we make other players (and networked objects) move smoothly despite only receiving updates 20-30 times per second. <PerplexityLink query="interpolation vs extrapolation multiplayer games networking" />
 
 The server sends "snapshots" of game state periodically. Between snapshots, clients interpolate — smoothly blending between the last known positions.
 
@@ -239,7 +239,7 @@ This introduces a small delay (usually one snapshot period, ~50ms) but makes eve
 
 <IndustryExample game="Left 4 Dead 2" relevance="co-op with AI sync">
 
-Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay. Clients receive snapshots and interpolate between them. [dive deeper →](https://www.perplexity.ai/search?q=left+4+dead+2+source+engine+networking+tick+rate)
+Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay. Clients receive snapshots and interpolate between them. <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
 
 For AI zombies, the server is fully authoritative — clients just render where the server says zombies are. This ensures all players see zombies in the same positions, which is critical for cooperative gameplay.
 
@@ -253,18 +253,18 @@ The key insight: **you only predict yourself, you interpolate everyone else.**
 
 ## Our Stack
 
-We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 3D rendering, with a WebSocket-based networking layer. [dive deeper →](https://www.perplexity.ai/search?q=pmndrs+poimandres+react+three+fiber+ecosystem)
+We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 3D rendering, with a WebSocket-based networking layer. <PerplexityLink query="pmndrs poimandres react three fiber ecosystem" />
 
 ### Core Technologies
 
 **React Three Fiber (R3F)**
-The React renderer for Three.js. Lets us build 3D scenes with React components. We'll use this for all game rendering. [dive deeper →](https://www.perplexity.ai/search?q=react+three+fiber+vs+vanilla+threejs+pros+cons)
+The React renderer for Three.js. Lets us build 3D scenes with React components. We'll use this for all game rendering. <PerplexityLink query="react three fiber vs vanilla threejs pros cons" />
 
 **Zustand**
-Minimal state management from the pmndrs ecosystem. R3F uses it internally, and we'll use it for local game state. Important: Zustand is client-side only — we need networking to sync between clients. [dive deeper →](https://www.perplexity.ai/search?q=zustand+state+management+react+three+fiber)
+Minimal state management from the pmndrs ecosystem. R3F uses it internally, and we'll use it for local game state. Important: Zustand is client-side only — we need networking to sync between clients. <PerplexityLink query="zustand state management react three fiber" />
 
 **WebSockets**
-The transport layer for real-time communication. We have options for the server: [dive deeper →](https://www.perplexity.ai/search?q=websocket+vs+webrtc+for+multiplayer+games)
+The transport layer for real-time communication. We have options for the server: <PerplexityLink query="websocket vs webrtc for multiplayer games" />
 
 | Option | Complexity | Best For |
 |--------|------------|----------|
@@ -273,7 +273,7 @@ The transport layer for real-time communication. We have options for the server:
 | [Colyseus](https://colyseus.io/) | Medium-High | Game-specific features (rooms, state sync) |
 | [Hathora](https://hathora.dev/) | Medium | Production game hosting |
 
-**For this POC, we'll use PartyKit** — it's the fastest way to get a WebSocket server running, deploys to the edge (low latency), and has excellent DX. [dive deeper →](https://www.perplexity.ai/search?q=partykit+websocket+edge+deployment+tutorial)
+**For this POC, we'll use PartyKit** — it's the fastest way to get a WebSocket server running, deploys to the edge (low latency), and has excellent DX. <PerplexityLink query="partykit websocket edge deployment tutorial" />
 
 ### Relevant Resources
 
@@ -327,7 +327,7 @@ Movement sync is the canary in the coal mine. If we can't make two players see e
 
 ### Step 1: Set Up PartyKit Server
 
-PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. [dive deeper →](https://www.perplexity.ai/search?q=partykit+cloudflare+workers+websocket+server+setup)
+PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. <PerplexityLink query="partykit cloudflare workers websocket server setup" />
 
 <CodeWalkthrough title="PartyKit server setup">
 
@@ -424,7 +424,7 @@ export default {
 
 ### Step 2: Client Connection Hook
 
-A React hook to manage the WebSocket connection and state. [dive deeper →](https://www.perplexity.ai/search?q=react+websocket+hook+pattern+real+time+state)
+A React hook to manage the WebSocket connection and state. <PerplexityLink query="react websocket hook pattern real time state" />
 
 <CodeWalkthrough title="useMultiplayer hook">
 
@@ -524,7 +524,7 @@ export function useMultiplayer(roomId: string) {
 
 ### Step 3: Game Scene with Player Rendering
 
-The React Three Fiber scene that renders all players. [dive deeper →](https://www.perplexity.ai/search?q=react+three+fiber+multiplayer+scene+rendering+players)
+The React Three Fiber scene that renders all players. <PerplexityLink query="react three fiber multiplayer scene rendering players" />
 
 <CodeWalkthrough title="Multiplayer scene">
 
@@ -584,7 +584,7 @@ export function MultiplayerScene({ roomId }: { roomId: string }) {
 
 ### Step 4: Local Player with Prediction
 
-The local player predicts movement immediately, then sends to server. [dive deeper →](https://www.perplexity.ai/search?q=client+side+prediction+implementation+javascript)
+The local player predicts movement immediately, then sends to server. <PerplexityLink query="client side prediction implementation javascript" />
 
 <CodeWalkthrough title="LocalPlayer with client-side prediction">
 
@@ -662,7 +662,7 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
 
 ### Step 5: Remote Player with Interpolation
 
-Remote players interpolate smoothly between network updates. [dive deeper →](https://www.perplexity.ai/search?q=lerp+interpolation+smooth+movement+game+networking)
+Remote players interpolate smoothly between network updates. <PerplexityLink query="lerp interpolation smooth movement game networking" />
 
 <CodeWalkthrough title="RemotePlayer with interpolation">
 
@@ -726,13 +726,13 @@ export function RemotePlayer({ player }: { player: Player }) {
 After building and testing this minimal multiplayer foundation, we should be able to answer:
 
 1. **Latency tolerance:** At what RTT does movement start feeling laggy?
-2. **Update frequency:** Is 20Hz enough, or do we need higher? [dive deeper →](https://www.perplexity.ai/search?q=tick+rate+update+frequency+multiplayer+games+optimal)
+2. **Update frequency:** Is 20Hz enough, or do we need higher? <PerplexityLink query="tick rate update frequency multiplayer games optimal" />
 3. **Interpolation quality:** Does lerp-based interpolation look smooth?
 4. **Connection handling:** How quickly can we detect and handle disconnects?
 5. **State recovery:** Can players rejoin seamlessly?
 
 These answers will inform every subsequent POC:
-- **POC 1 (Destruction):** How do we sync physics events? [dive deeper →](https://www.perplexity.ai/search?q=syncing+physics+destruction+multiplayer+games)
+- **POC 1 (Destruction):** How do we sync physics events? <PerplexityLink query="syncing physics destruction multiplayer games" />
 - **POC 2 (Heat):** Is server-authoritative heat responsive enough?
 - **POC 3 (AI):** Can we sync guard positions at acceptable bandwidth?
 - **POC 4 (Objectives):** How do we handle objective interaction timing?
@@ -741,7 +741,7 @@ These answers will inform every subsequent POC:
 
 ## Instrumentation
 
-We need to measure what matters: [dive deeper →](https://www.perplexity.ai/search?q=measuring+network+latency+jitter+multiplayer+games)
+We need to measure what matters: <PerplexityLink query="measuring network latency jitter multiplayer games" />
 
 ```typescript
 // Metrics to track
@@ -763,10 +763,10 @@ We'll add a debug overlay showing these metrics in real-time, and log aggregated
 
 Things we'll discover during implementation:
 
-- Should we use delta compression or full snapshots? [dive deeper →](https://www.perplexity.ai/search?q=delta+compression+vs+full+snapshots+game+networking)
+- Should we use delta compression or full snapshots? <PerplexityLink query="delta compression vs full snapshots game networking" />
 - How do we handle the first few frames before interpolation has data?
 - What's the right smoothing factor for interpolation?
-- Should we add extrapolation (predicting where remote players are going)? [dive deeper →](https://www.perplexity.ai/search?q=extrapolation+dead+reckoning+multiplayer+games)
+- Should we add extrapolation (predicting where remote players are going)? <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
 - How do we visualize connection quality to players?
 
 ---

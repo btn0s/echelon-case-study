@@ -1,13 +1,12 @@
 "use client"
 
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
-import { ChevronDownIcon } from "lucide-react"
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
 
 interface IndustryExampleProps {
   game: string
@@ -24,29 +23,23 @@ export function IndustryExample({
   defaultOpen = false,
   className,
 }: IndustryExampleProps) {
-  const [open, setOpen] = useState(defaultOpen)
-  const title = relevance
-    ? `${game} (${relevance})`
-    : game
+  const title = relevance ? `${game} (${relevance})` : game
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className={cn("my-4", className)}
+    <Accordion
+      type="single"
+      defaultValue={defaultOpen ? "example" : undefined}
+      collapsible
+      className={cn("my-4 border-none", className)}
     >
-      <CollapsibleTrigger className="flex w-full items-center justify-between text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <span>{title}</span>
-        <ChevronDownIcon
-          className={cn(
-            "h-3 w-3 transition-transform",
-            open && "rotate-180"
-          )}
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-2 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-        {children}
-      </CollapsibleContent>
-    </Collapsible>
+      <AccordionItem value="example" className="border-none">
+        <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground hover:no-underline py-2">
+          {title}
+        </AccordionTrigger>
+        <AccordionContent className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground pt-0">
+          {children}
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
   )
 }

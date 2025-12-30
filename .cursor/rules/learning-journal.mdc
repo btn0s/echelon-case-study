@@ -70,15 +70,21 @@ Use these to layer depth — readers can skim the main content or expand to lear
 
 ## Perplexity Deep Dive Links
 
-Add "dive deeper" links to Perplexity searches for any concept worth exploring further:
+Use the `<PerplexityLink>` component to add "dive deeper" links for any concept worth exploring:
 
-```markdown
-[dive deeper →](https://www.perplexity.ai/search?q=your+search+query+here)
+```mdx
+<PerplexityLink query="client side prediction multiplayer games how it works" />
 ```
 
 Add these inline after introducing a concept. Use specific, targeted queries:
 
-- Good: `client+side+prediction+multiplayer+games+how+it+works`
+- Good: `client side prediction multiplayer games how it works`
 - Bad: `networking` (too vague)
+
+Optional: customize the link text with children:
+
+```mdx
+<PerplexityLink query="GGPO rollback netcode">learn about rollback</PerplexityLink>
+```
 
 This lets readers instantly research any topic without leaving the flow.
