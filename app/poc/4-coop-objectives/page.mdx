@@ -1,0 +1,79 @@
+## TL;DR
+
+We're validating that objectives create real cooperation, not just parallel solo tasks. Does the 10s terminal hack create real co-op tension?
+
+## Key Questions
+
+- **Does the 10s terminal hack create real co-op tension (one hacks, one covers)?**  
+  The GDD requires 'both players vulnerable' during hack. If it's solo-able, cooperation fails.
+
+- **Are there moments where players must coordinate under pressure?**  
+  Cooperation pillar requires 'teammate is your lifeline'. If players can solo everything, it's not co-op.
+
+- **Does splitting up ever feel optimal, and is that okay for the fantasy?**  
+  If splitting up is always optimal, cooperation becomes parallel solo play.
+
+- **Do secondary objectives create real dilemmas (time vs heat vs reward)?**  
+  GDD: 'objectives are dilemmas'. If they're just checkboxes, cooperation fails.
+
+- **What interruptions are allowed (pause hack progress vs reset)?**  
+  Hack interruption behavior affects tension. Too forgiving = no tension. Too harsh = frustration.
+
+- **Are objectives understandable without reading docs?**  
+  Players shouldn't need to read docs to understand objectives. UI/UX must be clear.
+
+## Hypothesis
+
+Terminal hack requiring both players (10s channel, both vulnerable) creates genuine cooperation moments. Secondary objectives with quiet/loud path dilemmas create meaningful tradeoffs that split team attention.
+
+## Experiment Design
+
+Create test scenarios with terminal hack and secondary objectives. We'll test:
+
+- Terminal hack mechanic (10s channel, both vulnerable)
+- Secondary objectives (vault, data extraction, evidence)
+- Objective UI/UX clarity
+- Cooperation requirements
+
+**Validation method:** Players attempt objectives. Do they coordinate? Does terminal hack create tension? Do secondary objectives create dilemmas?
+
+## Instrumentation
+
+What we're measuring:
+
+- Coordination frequency (do players work together?)
+- Objective completion rates
+- Player understanding (do they know what to do?)
+- Time spent on objectives
+
+## Results
+
+*This section will be updated as we implement the POC.*
+
+### Success Criteria
+
+- Objectives create meaningful cooperation
+- Terminal hack creates tension (both players vulnerable)
+- Players want to coordinate strategy
+- Secondary objectives create interesting tradeoffs
+- Objective UI communicates status clearly
+
+## Decision
+
+*This section will document our decision once we complete the POC.*
+
+Once we complete testing, we'll document: final objective designs, interruption behavior, and UI/UX choices.
+
+## Open Questions
+
+- Should hack progress save on interruption or reset?
+- Do secondary objectives create real dilemmas?
+- Is splitting up ever optimal?
+
+## Integration Notes
+
+This POC connects to:
+
+- **POC 3: AI Guards** - Guards patrol near objectives, terminal hack makes both players vulnerable
+- **POC 5: Economy** - Completed objectives reward credits (+100 each)
+- **POC 7: Mission Flow** - Mission success requires objective completion

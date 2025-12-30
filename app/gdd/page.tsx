@@ -34,7 +34,7 @@ export default async function GDDPage() {
           </p>
         </header>
 
-        <div className="prose prose-neutral dark:prose-invert max-w-none">
+        <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
           <MDXRemote source={gddContent} />
         </div>
       </div>

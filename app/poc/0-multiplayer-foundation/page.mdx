@@ -1,0 +1,74 @@
+## TL;DR
+
+We're establishing the multiplayer networking foundation that all other systems depend on. Can we build reliable multiplayer sync that supports cooperative gameplay?
+
+## Key Questions
+
+- **What is authoritative (server) vs predicted (client)?**  
+  Network architecture affects all other systems. Wrong choices cause desync and frustration.
+
+- **What failure modes must be handled (disconnect mid-hack, mid-escape)?**  
+  Co-op games fail if disconnects break the experience. We need graceful degradation.
+
+- **What latency budget still feels like 'tight co-op'?**  
+  Co-op requires responsive feel. High latency breaks the fantasy of coordinated action.
+
+## Hypothesis
+
+Client-server architecture with server authority for critical state (positions, game state, heat, objectives) and client-side prediction for movement provides the best balance of responsiveness and consistency for our co-op game.
+
+## Experiment Design
+
+Build a minimal multiplayer test: two players can move around a shared space. We'll test:
+
+- Networking architecture (client-server vs peer-to-peer)
+- State synchronization approach
+- Connection handling and reconnection logic
+- Latency tolerance for responsive feel
+
+**Validation method:** Two players connect and move simultaneously. Does movement feel responsive? Do both clients see consistent state? Can we handle disconnects gracefully?
+
+## Instrumentation
+
+What we're measuring:
+
+- Network latency and jitter
+- State consistency (do clients agree?)
+- Connection stability
+- Reconnection success rate
+
+## Results
+
+*This section will be updated as we implement the POC.*
+
+### Success Criteria
+
+- Two players can connect reliably
+- Player movement feels responsive and consistent
+- Connection handling is robust (handles disconnects gracefully)
+- Network architecture supports all planned systems
+- Latency is acceptable for responsive gameplay
+- Reconnection works without losing game state
+
+## Decision
+
+*This section will document our decision once we complete the POC.*
+
+Once we complete testing, we'll document: which networking architecture we chose, what tick rate we're using, and how we're handling authority vs prediction.
+
+## Open Questions
+
+- What's the maximum acceptable latency for tight co-op feel?
+- Can players rejoin mid-mission, or only at lobby?
+- How do we handle state reconciliation after network hiccups?
+
+## Integration Notes
+
+This POC enables all other POCs:
+
+- **POC 1: Destruction** - Destruction state must sync across clients
+- **POC 2: Heat System** - Heat state needs server authority
+- **POC 3: AI Guards** - Guard positions and states must sync
+- **POC 4: Co-op Objectives** - Objective progress needs shared state
+- **POC 5: Economy** - Credit and loadout data must persist
+- **POC 7: Mission Flow** - Lobby and matchmaking depend on networking

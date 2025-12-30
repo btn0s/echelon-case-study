@@ -1,0 +1,73 @@
+## TL;DR
+
+We're validating that AI guards feel smart and challenging without being frustrating. Can guards be "smart" with simple rules?
+
+## Key Questions
+
+- **Can guards be 'smart' with simple rules (patrol → investigate → hunt)?**  
+  Complex AI is expensive. Simple state machine may be sufficient for the fantasy.
+
+- **How do guards communicate state to players (barks, lights, posture)?**  
+  Players need to read guard state. Unclear communication breaks stealth gameplay.
+
+- **Do guards create pressure without forcing combat every run?**  
+  Stealth runs must be viable. If guards always force combat, the quiet/loud choice disappears.
+
+## Hypothesis
+
+Simple state machine (Patrol → Alert → Hunt) with waypoint-based pathfinding creates guards that feel smart enough for the fantasy without requiring complex AI. Guards communicate state through visual cues (posture, lights) and audio (barks).
+
+## Experiment Design
+
+Create guards that patrol waypoints and respond to noise. We'll test:
+
+- Pathfinding approach (A*, navmesh, waypoints)
+- State machine behavior (patrol, investigate, hunt)
+- Investigation logic
+- Guard communication methods
+- Performance with 6+ guards
+
+**Validation method:** Players attempt stealth runs. Can they avoid guards? Do guards create pressure without forcing combat? Do guards feel smart or obviously scripted?
+
+## Instrumentation
+
+What we're measuring:
+
+- Guard pathfinding performance
+- State transition frequency
+- Player success rate on stealth runs
+- Frame rate with multiple guards
+
+## Results
+
+*This section will be updated as we implement the POC.*
+
+### Success Criteria
+
+- Guards feel smart but fair
+- Create tension without frustration
+- Patrol behavior feels natural
+- Investigation creates interesting gameplay moments
+- State transitions feel logical
+- Performance is acceptable with 6+ guards
+
+## Decision
+
+*This section will document our decision once we complete the POC.*
+
+Once we complete testing, we'll document: pathfinding approach chosen, state machine design, and communication methods.
+
+## Open Questions
+
+- Should guards share awareness or be independent?
+- How long should guards remember player positions?
+- What's the right balance between predictable and dynamic behavior?
+
+## Integration Notes
+
+This POC connects to:
+
+- **POC 2: Heat System** - Heat thresholds spawn guards and affect guard behavior
+- **POC 1: Destruction** - Guards investigate destruction sites
+- **POC 4: Co-op Objectives** - Guards patrol near objectives, terminal hack makes players vulnerable
+- **POC 6: Super Encounter** - All guards become aggressive when Super spawns

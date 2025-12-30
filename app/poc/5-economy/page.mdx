@@ -1,0 +1,77 @@
+## TL;DR
+
+We're validating that economic constraints create interesting choices without feeling punitive. Can players make an agonizing loadout choice with only ~200 credits?
+
+## Key Questions
+
+- **Can players make an agonizing loadout choice with only ~200 credits?**  
+  The GDD's 'Pre-Mission Dilemma' requires this choice to feel impossible. If it's easy, the pillar fails.
+
+- **Are rewards/costs tuned so that 'one more run' feels rational, not grindy?**  
+  Success criteria: 'Players want to try one more run'. This requires economic balance.
+
+- **Does Strike 2 (+25% costs) meaningfully change behavior, or just annoy?**  
+  Strike 2 should create tension, not frustration. Players should adapt strategy, not quit.
+
+- **Do players accept 'FIRED' as dramatic stakes, or reject it as punitive?**  
+  Strike 3 resets everything. This must feel dramatic, not unfair.
+
+- **What information do players need after failure to feel 'I can do better next run'?**  
+  Failure must feel learnable. Players need clear feedback on what went wrong.
+
+## Hypothesis
+
+GDD-specified credit values (starting ~200, rewards +100/+200) create meaningful loadout choices. Three-strike failure system creates dramatic stakes without feeling punitive. Strike 2 (+25% costs) meaningfully changes player behavior.
+
+## Experiment Design
+
+Create pre-mission shop with three loadout options. We'll test:
+
+- Credit balance and rewards
+- Loadout choice difficulty
+- 3-strike failure system impact
+- Persistence between missions
+
+**Validation method:** Players face loadout choices with limited credits. Do they deliberate? After failures, do they want to retry? Does Strike 2 change behavior?
+
+## Instrumentation
+
+What we're measuring:
+
+- Loadout choice time
+- Credit balance after missions
+- Retry rate after failures
+- Behavior changes at Strike 2
+
+## Results
+
+*This section will be updated as we implement the POC.*
+
+### Success Criteria
+
+- Economic constraints create interesting decisions
+- Loadout choices feel meaningful
+- Failure feels consequential but not punitive
+- Players want to optimize loadouts based on strategy
+- Credit balance supports replayability
+
+## Decision
+
+*This section will document our decision once we complete the POC.*
+
+Once we complete testing, we'll document: final credit values, loadout costs, and strike system tuning.
+
+## Open Questions
+
+- Should credits persist between sessions?
+- Do strikes reset after success or only on failure?
+- Are loadout costs balanced with effectiveness?
+
+## Integration Notes
+
+This POC connects to:
+
+- **POC 4: Co-op Objectives** - Completed objectives reward credits (+100 each)
+- **POC 2: Heat System** - Stealth bonus (Heat < 50) rewards +100 credits
+- **POC 7: Mission Flow** - Pre-mission shop and credit rewards
+- **POC 1: Destruction** - Equipment costs affect destruction strategy

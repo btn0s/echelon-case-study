@@ -1,0 +1,74 @@
+## TL;DR
+
+We're validating that the Super encounter feels exciting and memorable, not frustrating. Does the Super feel like a climax, not a chore?
+
+## Key Questions
+
+- **Does the Super feel like a climax, not a chore?**  
+  Super is the dramatic peak. If it feels like a chore, the climax fails.
+
+- **Can players escape reliably with skill, and does it feel earned?**  
+  Super should be escapable with skill. If it's random, it feels unfair.
+
+- **Is stun satisfying and scarce enough to be strategic?**  
+  Stun requires explosives (expensive). It must feel like a meaningful choice, not spam.
+
+## Hypothesis
+
+Super spawn at heat 100 with dramatic entrance (breaks through wall), chase mechanics targeting nearest player, and stun system (explosives, 3-second stun) creates a memorable climax moment. Players can escape reliably with skill.
+
+## Experiment Design
+
+Create Super encounter triggered at heat 100. We'll test:
+
+- Dramatic entrance (breaks through wall)
+- Chase behavior (targets nearest player)
+- Physics knockback attacks
+- Stun mechanic (explosives, 3-second stun)
+- Escape conditions
+
+**Validation method:** Trigger Super encounter. Do players feel excitement or frustration? Can skilled players escape? Does stun feel satisfying?
+
+## Instrumentation
+
+What we're measuring:
+
+- Escape success rate
+- Stun usage frequency
+- Player emotional response
+- Chase duration
+
+## Results
+
+*This section will be updated as we implement the POC.*
+
+### Success Criteria
+
+- Super feels threatening and memorable
+- Chase creates tension and excitement
+- Players can escape (not impossible)
+- Stun mechanic feels satisfying to use
+- Entrance feels dramatic and impactful
+- Encounter doesn't feel frustrating or unfair
+
+## Decision
+
+*This section will document our decision once we complete the POC.*
+
+Once we complete testing, we'll document: Super behavior design, chase mechanics, stun system, and escape conditions.
+
+## Open Questions
+
+- How should Super pathfind (through walls vs around obstacles)?
+- Can stuns be chained, or should there be a cooldown?
+- What are the exact escape conditions?
+
+## Integration Notes
+
+This POC connects to:
+
+- **POC 2: Heat System** - Super spawns at heat 100 (climax of all tension)
+- **POC 1: Destruction** - Super breaks through walls, creating new paths
+- **POC 3: AI Guards** - All guards become aggressive when Super spawns
+- **POC 5: Economy** - Stun requires explosives (economy system)
+- **POC 4: Co-op Objectives** - Super chases players, affecting objective completion
