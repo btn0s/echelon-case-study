@@ -26,9 +26,9 @@ export function Concept({
       type="single"
       defaultValue={defaultOpen ? "concept" : undefined}
       collapsible
-      className={cn("my-4 border-none", className)}
+      className={cn("my-4 border", className)}
     >
-      <AccordionItem value="concept" className="border-none">
+      <AccordionItem value="concept">
         <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground hover:no-underline py-2">
           {title}
         </AccordionTrigger>

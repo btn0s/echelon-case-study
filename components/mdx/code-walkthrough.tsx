@@ -26,9 +26,9 @@ export function CodeWalkthrough({
       type="single"
       defaultValue={defaultOpen ? "code" : undefined}
       collapsible
-      className={cn("my-4 border-none", className)}
+      className={cn("my-4 border", className)}
     >
-      <AccordionItem value="code" className="border-none">
+      <AccordionItem value="code">
         <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground hover:no-underline py-2">
           {title}
         </AccordionTrigger>

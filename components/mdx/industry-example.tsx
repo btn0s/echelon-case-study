@@ -30,9 +30,9 @@ export function IndustryExample({
       type="single"
       defaultValue={defaultOpen ? "example" : undefined}
       collapsible
-      className={cn("my-4 border-none", className)}
+      className={cn("my-4 border", className)}
     >
-      <AccordionItem value="example" className="border-none">
+      <AccordionItem value="example">
         <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground hover:no-underline py-2">
           {title}
         </AccordionTrigger>

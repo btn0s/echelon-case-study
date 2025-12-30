@@ -26,9 +26,9 @@ export function LearnMore({
       type="single"
       defaultValue={defaultOpen ? "content" : undefined}
       collapsible
-      className={cn("my-4 border-none", className)}
+      className={cn("my-4 border", className)}
     >
-      <AccordionItem value="content" className="border-none">
+      <AccordionItem value="content">
         <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground hover:no-underline py-2">
           {title}
         </AccordionTrigger>

@@ -67,16 +67,12 @@ Player A ←→ Player B
 Player C ←→ Player D
 ```
 
-**Pros:**
-- No server costs
-- Lower latency for nearby players
-- Works offline/LAN
-
-**Cons:**
-- N² connections (scales poorly)
-- No authoritative state (who's right when players disagree?)
-- Cheating is trivial (your machine decides what's true)
-- NAT traversal is painful <PerplexityLink query="NAT traversal hole punching multiplayer games" />
+| Pros | Cons |
+|------|------|
+| No server costs | N² connections (scales poorly) |
+| Lower latency for nearby players | No authoritative state (who's right when players disagree?) |
+| Works offline/LAN | Cheating is trivial (your machine decides what's true) |
+| | NAT traversal is painful <PerplexityLink query="NAT traversal hole punching multiplayer games" /> |
 
 **Used by:** Older fighting games, some indie games, local multiplayer
 
@@ -91,15 +87,11 @@ Player B → Host (Player A) ← Player C
            Player D
 ```
 
-**Pros:**
-- No dedicated server needed
-- Simpler than full client-server
-- Works for small player counts
-
-**Cons:**
-- Host has zero latency (unfair advantage in competitive games)
-- If host disconnects, game ends (or requires migration)
-- Host's internet quality affects everyone
+| Pros | Cons |
+|------|------|
+| No dedicated server needed | Host has zero latency (unfair advantage in competitive games) |
+| Simpler than full client-server | If host disconnects, game ends (or requires migration) |
+| Works for small player counts | Host's internet quality affects everyone |
 
 **Used by:** Payday 2, Deep Rock Galactic, many co-op games
 
@@ -114,20 +106,16 @@ Player A → Server ← Player B
           Player C
 ```
 
-**Pros:**
-- Consistent experience for all players
-- Server can validate/prevent cheating
-- Server can persist state, handle reconnects
-- Professional hosting options (Hathora, etc.)
-
-**Cons:**
-- Requires server infrastructure
-- Added complexity
-- Server costs money
+| Pros | Cons |
+|------|------|
+| Consistent experience for all players | Requires server infrastructure |
+| Server can validate/prevent cheating | Added complexity |
+| Server can persist state, handle reconnects | Server costs money |
+| Professional hosting options (Hathora, etc.) | |
 
 **Used by:** Counter-Strike, Fortnite, most competitive games
 
-<Tradeoffs title="Which approach for Echelon?">
+### Which approach for Echelon?
 
 | Factor | P2P | Host-Auth | Client-Server |
 |--------|-----|-----------|---------------|
@@ -142,8 +130,6 @@ Player A → Server ← Player B
 Echelon needs consistent state for heat systems, AI guards, and objectives. We can't have players seeing different heat levels or objective states. Client-server gives us the foundation to build authoritative game systems.
 
 For development, we'll use a simple WebSocket server. For production, we could use [Hathora](https://hathora.dev/), [Colyseus Cloud](https://colyseus.io/), or self-host. <PerplexityLink query="game server hosting options hathora colyseus 2024" />
-
-</Tradeoffs>
 
 ---
 

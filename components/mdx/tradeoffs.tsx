@@ -26,9 +26,9 @@ export function Tradeoffs({
       type="single"
       defaultValue={defaultOpen ? "tradeoffs" : undefined}
       collapsible
-      className={cn("my-4 border-none", className)}
+      className={cn("my-4 border", className)}
     >
-      <AccordionItem value="tradeoffs" className="border-none">
+      <AccordionItem value="tradeoffs">
         <AccordionTrigger className="text-sm text-muted-foreground hover:text-foreground hover:no-underline py-2">
           {title}
         </AccordionTrigger>
