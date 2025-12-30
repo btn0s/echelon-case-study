@@ -55,10 +55,11 @@ export default function HomePage() {
               fired.
             </p>
             <div className="not-prose mt-4">
-              <Link href="/docs/gdd">
-                <Button variant="outline" size="sm">
-                  View GDD <ArrowUpRight className="size-3 ml-1" />
-                </Button>
+              <Link
+                href="/docs/gdd"
+                className="group inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 hover:underline"
+              >
+                View GDD <ArrowUpRight className="size-3" />
               </Link>
             </div>
           </section>
@@ -72,13 +73,18 @@ export default function HomePage() {
               one risky assumption. Each has one job: prove that a specific
               mechanic is solvable—and fun.
             </p>
+
+            <b>Problem &rarr; Options &rarr; Implementation &rarr; Results</b>
+
+            {/* <code className="bg-foreground text-background w-full h-24 flex items-center justify-center before:content-[''] after:content-['']">
+              Problem &rarr; Options &rarr; Implementation &rarr; Results
+            </code> */}
+
             <p>
               This structure makes AI collaboration work. With explicit
-              questions and a consistent template—
-              <strong>Problem → Options → Implementation → Results</strong>—the
-              AI has context. It knows what we&apos;re trying to prove. Each POC
-              stands alone. Together, they show what we learned building
-              Echelon.
+              questions and a consistent template, the AI has context. It knows
+              what we&apos;re trying to prove. Each POC stands alone. Together,
+              they show what we learned building Echelon.
             </p>
           </section>
 

@@ -163,6 +163,10 @@ code {
   @apply relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-xs;
 }
 
+code.bg-foreground {
+  @apply bg-foreground text-background;
+}
+
 pre code {
   @apply bg-transparent p-0;
 }
