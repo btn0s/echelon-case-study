@@ -315,6 +315,20 @@ Movement sync is the canary in the coal mine. If we can't make two players see e
 
 PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. <PerplexityLink query="partykit cloudflare workers websocket server setup" />
 
+The server is the authoritative source of truth. It maintains game state, validates player actions, and broadcasts updates to all connected clients. PartyKit's `room.storage` gives us persistent state that survives reconnects — critical for a multiplayer game.
+
+**What we're building:**
+- A server that tracks all players in a room
+- Connection lifecycle handlers (connect, message, disconnect)
+- Message routing that broadcasts state changes to all clients
+- Persistent storage so players can rejoin and see the current game state
+
+**Why PartyKit:**
+- Edge deployment means low latency for players worldwide
+- Built-in room management handles WebSocket connections automatically
+- `room.storage` provides persistent state without a database
+- TypeScript-first API with excellent DX
+
 <CodeWalkthrough title="PartyKit server setup">
 
 ```typescript
@@ -412,6 +426,17 @@ export default {
 
 A React hook to manage the WebSocket connection and state. <PerplexityLink query="react websocket hook pattern real time state" />
 
+This hook encapsulates all the networking logic on the client side. It handles connection lifecycle, message parsing, state updates, and provides a clean API for components to use. The hook returns the current connection state, all players, and a function to send movement updates.
+
+**Why a custom hook:**
+- Separates networking concerns from UI components
+- Makes it easy to test networking logic independently
+- Provides a consistent API that multiple components can use
+- Handles all the WebSocket event listeners in one place
+
+**State management approach:**
+We're using React's `useState` with a `Map` for players. This gives us O(1) lookups by player ID, which is important when we have many players. The state updates immutably — we create new Maps on each update to trigger React re-renders.
+
 <CodeWalkthrough title="useMultiplayer hook">
 
 ```typescript
@@ -506,11 +531,26 @@ export function useMultiplayer(roomId: string) {
 - State updates on each message type
 - `sendMove` is how we tell the server we moved
 
+**Message handling:**
+Each message type has a specific handler. The `init` message sets up the initial state when we first connect. `player-joined` and `player-left` handle the player list. `player-moved` updates remote player positions.
+
+Notice that we're mutating the player object in the `player-moved` handler (`player.position = data.position`). This is safe because we're mutating an object inside a Map that we just created, not the previous state. React will still detect the change because we're returning a new Map reference.
+
+The `sendMove` function is intentionally simple — it just serializes and sends. The actual movement logic happens in the `LocalPlayer` component, which calls this function after predicting movement locally.
+
 </CodeWalkthrough>
 
 ### Step 3: Game Scene with Player Rendering
 
 The React Three Fiber scene that renders all players. <PerplexityLink query="react three fiber multiplayer scene rendering players" />
+
+This component ties everything together. It uses the `useMultiplayer` hook to get connection state and player data, then renders a 3D scene with React Three Fiber. The key insight here is the distinction between `LocalPlayer` and `RemotePlayer` — they handle movement differently because one is controlled locally (with prediction) and the others are observed remotely (with interpolation).
+
+**Scene setup:**
+We're using a simple scene with ambient and directional lighting, a ground plane for reference, and OrbitControls so we can move the camera around. The ground plane helps visualize movement — players move on the XZ plane (horizontal), with Y being up.
+
+**Player rendering logic:**
+The component maps over all players and conditionally renders either `LocalPlayer` or `RemotePlayer` based on whether the player ID matches the current client's ID. This is the critical split: your own player gets prediction, everyone else gets interpolation.
 
 <CodeWalkthrough title="Multiplayer scene">
 
@@ -565,6 +605,11 @@ export function MultiplayerScene({ roomId }: { roomId: string }) {
 **Key distinction:**
 - `LocalPlayer` handles input and prediction (you control it)
 - `RemotePlayer` interpolates from network updates (you observe it)
+
+**Why separate components:**
+This separation is fundamental to responsive multiplayer. Your own character needs immediate feedback (prediction), while other players need smooth interpolation between network updates. Trying to handle both in one component would create complexity and performance issues.
+
+The `sendMove` callback connects the local player's movement to the network layer. When the local player moves, it calls `sendMove`, which sends the update to the server. The server then broadcasts it to all other clients, who update their `RemotePlayer` components.
 
 </CodeWalkthrough>
 
@@ -644,6 +689,13 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
 - Network updates throttled to ~20Hz
 - Position stored in ref to avoid re-renders
 
+**Implementation details:**
+We use `useRef` for position storage because `useFrame` runs every frame and we don't want to trigger React re-renders. The ref stores a Three.js `Vector3` which we mutate directly. The mesh position is updated by copying from the ref each frame.
+
+The movement calculation normalizes the direction vector before applying speed. This ensures consistent movement speed regardless of diagonal movement. Without normalization, moving diagonally would be faster than moving in a single direction.
+
+The 50ms throttle (20Hz) is a balance between responsiveness and bandwidth. In a real game, you might adjust this based on network conditions or game type. Fast-paced shooters might need 30-60Hz, while slower games might be fine with 10-15Hz.
+
 </CodeWalkthrough>
 
 ### Step 5: Remote Player with Interpolation
@@ -702,6 +754,13 @@ export function RemotePlayer({ player }: { player: Player }) {
 - Target position updates from network
 - Current position lerps toward target each frame
 - `delta * 10` gives ~100ms smoothing
+
+**Implementation details:**
+The `useEffect` updates the target position whenever we receive a new network update. The `useFrame` hook then smoothly interpolates the current position toward the target every frame. This creates continuous movement even though we only receive updates every 50ms.
+
+The smoothing factor (`delta * 10`) is tunable. Higher values (like `delta * 20`) make movement snappier but can look jittery. Lower values (like `delta * 5`) are smoother but feel laggy. The `~100ms` target is a good default — it's fast enough to feel responsive but slow enough to smooth out network jitter.
+
+In a production game, you might want to add extrapolation (predicting where the player is going) or adjust the smoothing factor based on network conditions. For this POC, simple interpolation is sufficient to validate the networking foundation.
 
 </CodeWalkthrough>
 
