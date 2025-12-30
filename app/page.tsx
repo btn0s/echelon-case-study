@@ -1,7 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { POCS } from "@/lib/pocs";
 import { QUESTIONS } from "@/lib/caseStudy/questions";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Building a Co-op Heist Game by Designing the Post-Mortem First",
+  description:
+    "A case study in AI-assisted game development. Nine prototypes, one game: how we built Echelon by asking the right questions first.",
+  openGraph: {
+    title: "Echelon Case Study",
+    description:
+      "Building a co-op heist game by designing the post-mortem first. A case study in AI-assisted game development.",
+  },
+};
 
 export default function HomePage() {
   const totalQuestions = QUESTIONS.length;
