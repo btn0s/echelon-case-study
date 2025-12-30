@@ -8,6 +8,14 @@ Multiplayer networking is the invisible infrastructure that every other system d
 
 **What we're validating:** Can we build reliable multiplayer sync that feels responsive for cooperative gameplay?
 
+**TL;DR**
+- **Architecture:** Dedicated client-server (server authoritative)
+- **Prototype stack:** PartyKit (server) + WebSockets + React Three Fiber (rendering)
+- **Movement model:** predict your own movement locally, interpolate everyone else
+- **Network target:** send movement ~20Hz, render at frame rate
+- **Done when:** two clients can connect/reconnect and see each other move smoothly under ~150ms RTT
+- **Out of scope (for this POC):** input sequencing/reconciliation, anti-cheat, authoritative physics sync
+
 ---
 
 ## Why Multiplayer is Hard
@@ -148,8 +156,8 @@ For critical game state, the server is authoritative:
 - Player health
 - Inventory
 
-For responsive interactions, the client can be authoritative (with server validation):
-- Player movement (predict locally, server corrects)
+For responsiveness, the client can *predict* some outcomes locally (while the server remains authoritative and can correct):
+- Player movement (predict locally, server corrects via reconciliation)
 - Visual effects (cosmetic only)
 
 <Pitfall title="Never trust the client for critical state">
@@ -335,56 +343,64 @@ The server is the authoritative source of truth. It maintains game state, valida
 // party/main.ts
 import type { PartyKitServer, PartyConnection } from "partykit/server"
 
+type Vec3 = { x: number; y: number; z: number }
+
 interface Player {
   id: string
-  position: { x: number; y: number; z: number }
+  position: Vec3
   rotation: number
 }
 
 interface GameState {
-  players: Map<string, Player>
+  players: Record<string, Player>
 }
 
 export default {
   // Called when a new player connects
-  onConnect(connection: PartyConnection, room) {
-    const state = room.storage.get("state") as GameState ?? { players: new Map() }
+  async onConnect(connection: PartyConnection, room) {
+    const state =
+      (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
     
     // Add new player
-    state.players.set(connection.id, {
+    const player: Player = {
       id: connection.id,
-      position: { x: 0, y: 0, z: 0 },
+      position: { x: 0, y: 0.5, z: 0 },
       rotation: 0,
-    })
+    }
+    state.players[connection.id] = player
     
     // Send current state to the new player
     connection.send(JSON.stringify({
       type: "init",
       playerId: connection.id,
-      players: Array.from(state.players.values()),
+      players: Object.values(state.players),
     }))
     
     // Broadcast new player to everyone else
     room.broadcast(JSON.stringify({
       type: "player-joined",
-      player: state.players.get(connection.id),
+      player,
     }), [connection.id])
     
-    room.storage.put("state", state)
+    await room.storage.put("state", state)
   },
   
   // Called when player sends a message (e.g., movement input)
-  onMessage(message: string, connection: PartyConnection, room) {
+  async onMessage(message: string, connection: PartyConnection, room) {
     const data = JSON.parse(message)
-    const state = room.storage.get("state") as GameState
+    const state =
+      (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
     
     if (data.type === "move") {
       // Server validates and updates authoritative position
-      const player = state.players.get(connection.id)
+      const player = state.players[connection.id]
       if (player) {
         // In a real game, we'd validate this movement
-        player.position = data.position
-        player.rotation = data.rotation
+        state.players[connection.id] = {
+          ...player,
+          position: data.position,
+          rotation: data.rotation,
+        }
         
         // Broadcast to all clients
         room.broadcast(JSON.stringify({
@@ -396,20 +412,21 @@ export default {
       }
     }
     
-    room.storage.put("state", state)
+    await room.storage.put("state", state)
   },
   
   // Called when player disconnects
-  onClose(connection: PartyConnection, room) {
-    const state = room.storage.get("state") as GameState
-    state.players.delete(connection.id)
+  async onClose(connection: PartyConnection, room) {
+    const state =
+      (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
+    delete state.players[connection.id]
     
     room.broadcast(JSON.stringify({
       type: "player-left",
       playerId: connection.id,
     }))
     
-    room.storage.put("state", state)
+    await room.storage.put("state", state)
   },
 } satisfies PartyKitServer
 ```
@@ -421,6 +438,14 @@ export default {
 - On disconnect: clean up player, notify others
 
 </CodeWalkthrough>
+
+<Pitfall title="POC simplification: we're sending transforms, not inputs">
+
+For POC 0, clients send their **position/rotation** ("state sync") because it's the fastest way to validate connectivity + interpolation. This is not secure and it won't hold up for authoritative physics.
+
+In later POCs, we'll send **inputs + sequence numbers** and reconcile client prediction against the server's simulation.
+
+</Pitfall>
 
 ### Step 2: Client Connection Hook
 
@@ -441,7 +466,7 @@ We're using React's `useState` with a `Map` for players. This gives us O(1) look
 
 ```typescript
 // hooks/useMultiplayer.ts
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import usePartySocket from "partysocket/react"
 
 interface Player {
@@ -494,11 +519,14 @@ export function useMultiplayer(roomId: string) {
         case "player-moved":
           setState(prev => {
             const players = new Map(prev.players)
-            const player = players.get(data.playerId)
-            if (player) {
-              player.position = data.position
-              player.rotation = data.rotation
-            }
+            const previous = players.get(data.playerId)
+            if (!previous) return { ...prev, players }
+
+            players.set(data.playerId, {
+              ...previous,
+              position: data.position,
+              rotation: data.rotation,
+            })
             return { ...prev, players }
           })
           break
@@ -534,7 +562,7 @@ export function useMultiplayer(roomId: string) {
 **Message handling:**
 Each message type has a specific handler. The `init` message sets up the initial state when we first connect. `player-joined` and `player-left` handle the player list. `player-moved` updates remote player positions.
 
-Notice that we're mutating the player object in the `player-moved` handler (`player.position = data.position`). This is safe because we're mutating an object inside a Map that we just created, not the previous state. React will still detect the change because we're returning a new Map reference.
+Notice that in the `player-moved` handler we replace the player object (immutable update) rather than mutating it in place. This avoids subtle stale-reference bugs and makes it easier to reason about updates.
 
 The `sendMove` function is intentionally simple — it just serializes and sends. The actual movement logic happens in the `LocalPlayer` component, which calls this function after predicting movement locally.
 
@@ -635,12 +663,13 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
   const meshRef = useRef<THREE.Mesh>(null)
   const positionRef = useRef(new THREE.Vector3(
     initialPosition.x, 
-    initialPosition.y, 
+    0.5,
     initialPosition.z
   ))
   const lastSentRef = useRef(0)
   
   // Keyboard input (WASD)
+  // Requires a <KeyboardControls /> provider configured with forward/backward/left/right
   const [, getKeys] = useKeyboardControls()
   
   useFrame((_, delta) => {
