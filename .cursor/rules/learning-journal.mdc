@@ -1,0 +1,84 @@
+# Learning Journal / POC Case Studies
+
+## Purpose
+
+The `/app/poc/` pages are **educational case studies** that serve as both a learning tool during development and permanent documentation for future reference.
+
+They answer: "If someone (including future me) wants to understand how and why we built X, can they learn it deeply from this page?"
+
+## Philosophy: Narrative Over Template
+
+Each POC page should tell a **story**, not fill a template. Walk the reader through:
+
+1. **The problem** — Why does this matter? What breaks if we get it wrong?
+2. **Historical context** — How has the industry solved this? What can we learn from games like Payday, Left 4 Dead, etc.?
+3. **The options** — What approaches exist? What are the tradeoffs?
+4. **Our thinking** — Why are we choosing this approach for Echelon specifically?
+5. **The implementation** — Step-by-step, what do we build? How does the code work?
+6. **What we learned** — Results, decisions, lessons for future POCs
+
+Don't force every POC into identical sections. Let the content dictate the structure. A networking POC needs deep explanation of prediction vs interpolation. A UI POC might need more visual examples. Be intentional.
+
+## Content Requirements
+
+Every POC should include, where relevant:
+
+- **The "why"** — Why this matters for Echelon, consequences of getting it wrong
+- **History and context** — How real games solved this (Payday 2, L4D2, Deep Rock, etc.)
+- **Concept explanations** — Teach the reader, don't assume knowledge
+- **Tradeoff analysis** — Options considered, pros/cons, why we chose what we chose
+- **Stack-specific guidance** — R3F, pmndrs ecosystem, relevant libraries
+- **Real resources** — Links to Gaffer on Games, Wawa Sensei, GDC talks, GitHub repos
+- **Code walkthroughs** — Annotated snippets explaining the "why" not just "what"
+- **Pitfalls and warnings** — Common mistakes, "things I wish I knew"
+- **Open questions** — What we'll discover during implementation
+
+## Our Stack
+
+Keep these in mind when writing implementation guidance:
+
+- **React Three Fiber (R3F)** — 3D rendering
+- **Zustand** — Local state management (client-side only)
+- **@react-three/rapier** — Physics
+- **PartyKit / Socket.io / Colyseus** — Networking options
+- **pmndrs ecosystem** — drei, postprocessing, etc.
+
+Find resources from the community:
+- [Wawa Sensei tutorials](https://wawasensei.dev/)
+- [Gaffer on Games](https://gafferongames.com/)
+- [pmndrs GitHub](https://github.com/pmndrs)
+- Relevant GDC talks
+
+## Writing Style
+
+- **Teach, don't document** — Write as if explaining to a smart developer new to game dev
+- **Tell the story** — "We tried X, but discovered Y, so we chose Z"
+- **Be specific** — Name specific games, link specific articles, cite specific patterns
+- **Show the thinking** — Why this approach? What alternatives did we reject?
+- **Use expandable sections** — `<LearnMore>`, `<Concept>`, `<IndustryExample>`, `<Tradeoffs>`, `<Pitfall>`, `<CodeWalkthrough>` for depth without clutter
+
+## Available MDX Components
+
+Use these to layer depth — readers can skim the main content or expand to learn more:
+
+- `<LearnMore title="...">` — Generic expandable for additional context
+- `<Concept title="...">` — Theory explanations
+- `<IndustryExample game="..." relevance="...">` — How real games solve this
+- `<Tradeoffs title="...">` — Comparison tables and analysis
+- `<Pitfall title="..." severity="warning|critical">` — Warnings and gotchas
+- `<CodeWalkthrough title="...">` — Annotated code with explanation
+
+## Perplexity Deep Dive Links
+
+Add "dive deeper" links to Perplexity searches for any concept worth exploring further:
+
+```markdown
+[dive deeper →](https://www.perplexity.ai/search?q=your+search+query+here)
+```
+
+Add these inline after introducing a concept. Use specific, targeted queries:
+
+- Good: `client+side+prediction+multiplayer+games+how+it+works`
+- Bad: `networking` (too vague)
+
+This lets readers instantly research any topic without leaving the flow.

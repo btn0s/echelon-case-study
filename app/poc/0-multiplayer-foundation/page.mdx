@@ -1,76 +1,782 @@
 # POC 0: Multiplayer Foundation
 
-## TL;DR
+## The Problem We're Solving
 
-We're establishing the multiplayer networking foundation that all other systems depend on. Can we build reliable multiplayer sync that supports cooperative gameplay?
+Before we can build destructible walls, heat systems, or Super encounters, we need two players to exist in the same world. This sounds simple. It is not.
 
-## Key Questions
+Multiplayer networking is the invisible infrastructure that every other system depends on. Get it wrong, and players see different worlds. Get it really wrong, and the game feels unplayable — laggy, inconsistent, frustrating. This POC establishes the foundation that POCs 1-7 will build upon.
 
-- **What is authoritative (server) vs predicted (client)?**  
-  Network architecture affects all other systems. Wrong choices cause desync and frustration.
+**What we're validating:** Can we build reliable multiplayer sync that feels responsive for cooperative gameplay?
 
-- **What failure modes must be handled (disconnect mid-hack, mid-escape)?**  
-  Co-op games fail if disconnects break the experience. We need graceful degradation.
+---
 
-- **What latency budget still feels like 'tight co-op'?**  
-  Co-op requires responsive feel. High latency breaks the fantasy of coordinated action.
+## Why Multiplayer is Hard
 
-## Hypothesis
+### The Fundamental Problem: Latency
 
-Client-server architecture with server authority for critical state (positions, game state, heat, objectives) and client-side prediction for movement provides the best balance of responsiveness and consistency for our co-op game.
+When you press "move forward" on your keyboard, light travels through wires to a server, the server processes your input, and light travels back. Even at the speed of light, this takes time — typically 20-150ms depending on distance. [dive deeper →](https://www.perplexity.ai/search?q=network+latency+in+multiplayer+games+explained)
 
-## Experiment Design
+For a single-player game, this is irrelevant. For a multiplayer game, it creates a paradox:
 
-Build a minimal multiplayer test: two players can move around a shared space. We'll test:
+- If you wait for server confirmation before showing movement, the game feels sluggish
+- If you show movement immediately, you might be wrong about where you actually are
+- If two players interact with the same object, who wins?
 
-- Networking architecture (client-server vs peer-to-peer)
-- State synchronization approach
-- Connection handling and reconnection logic
-- Latency tolerance for responsive feel
+Every multiplayer game in history has had to solve this problem. The solutions are well-documented, but choosing the right approach for your game requires understanding the tradeoffs.
 
-**Validation method:** Two players connect and move simultaneously. Does movement feel responsive? Do both clients see consistent state? Can we handle disconnects gracefully?
+<LearnMore title="The history of multiplayer networking">
 
-## Instrumentation
+The techniques we use today were pioneered in the 1990s and refined through decades of iteration. [dive deeper →](https://www.perplexity.ai/search?q=history+of+multiplayer+game+networking+quake+half-life)
 
-What we're measuring:
+**1996: Quake and the birth of client-server**
 
-- Network latency and jitter
-- State consistency (do clients agree?)
-- Connection stability
-- Reconnection success rate
+John Carmack's Quake was one of the first games to implement true client-server architecture over the internet. Before Quake, most multiplayer games used peer-to-peer or LAN-only approaches. Carmack documented his approach in his famous `.plan` files, which became foundational texts for game networking. [dive deeper →](https://www.perplexity.ai/search?q=john+carmack+quake+networking+.plan+files)
 
-## Results
+**1999-2001: Half-Life and lag compensation**
 
-*This section will be updated as we implement the POC.*
+Valve's GoldSrc engine (used for Half-Life, Counter-Strike) introduced sophisticated lag compensation — the server would "rewind time" to check if a player's shot actually hit where they were aiming, accounting for their latency. This made high-ping players competitive. [dive deeper →](https://www.perplexity.ai/search?q=valve+lag+compensation+how+it+works+counter-strike)
+
+**2001: Gaffer on Games**
+
+Glenn Fiedler began publishing his "Gaffer on Games" articles, providing detailed technical explanations of networking concepts. His articles on [Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) and [State Synchronization](https://gafferongames.com/post/state_synchronization/) remain essential reading 20+ years later.
+
+**2006-2010: Source Engine refinements**
+
+Valve's Source engine (Half-Life 2, Team Fortress 2, Left 4 Dead) refined these techniques further. Their [Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) documentation is one of the best public explanations of production networking.
+
+**2019: GGPO and rollback renaissance**
+
+Fighting games pioneered rollback netcode (predicting inputs rather than waiting for confirmation), and libraries like GGPO made this accessible. While overkill for our co-op game, understanding rollback helps appreciate the tradeoff space. [dive deeper →](https://www.perplexity.ai/search?q=GGPO+rollback+netcode+explained+fighting+games)
+
+</LearnMore>
+
+---
+
+## Understanding the Options
+
+There are three fundamental approaches to multiplayer networking. Each makes different tradeoffs between complexity, consistency, and responsiveness. [dive deeper →](https://www.perplexity.ai/search?q=peer+to+peer+vs+client+server+multiplayer+game+architecture)
+
+### Option 1: Peer-to-Peer (P2P)
+
+Every player's machine talks directly to every other player's machine. No central server. [dive deeper →](https://www.perplexity.ai/search?q=peer+to+peer+networking+in+games+pros+cons)
+
+**How it works:**
+```
+Player A ←→ Player B
+    ↕           ↕
+Player C ←→ Player D
+```
+
+**Pros:**
+- No server costs
+- Lower latency for nearby players
+- Works offline/LAN
+
+**Cons:**
+- N² connections (scales poorly)
+- No authoritative state (who's right when players disagree?)
+- Cheating is trivial (your machine decides what's true)
+- NAT traversal is painful [dive deeper →](https://www.perplexity.ai/search?q=NAT+traversal+hole+punching+multiplayer+games)
+
+**Used by:** Older fighting games, some indie games, local multiplayer
+
+### Option 2: Host-Authoritative (Listen Server)
+
+One player's machine acts as both player and server. Other players connect to them. [dive deeper →](https://www.perplexity.ai/search?q=listen+server+host+migration+multiplayer+games)
+
+**How it works:**
+```
+Player B → Host (Player A) ← Player C
+               ↓
+           Player D
+```
+
+**Pros:**
+- No dedicated server needed
+- Simpler than full client-server
+- Works for small player counts
+
+**Cons:**
+- Host has zero latency (unfair advantage in competitive games)
+- If host disconnects, game ends (or requires migration)
+- Host's internet quality affects everyone
+
+**Used by:** Payday 2, Deep Rock Galactic, many co-op games
+
+### Option 3: Client-Server (Dedicated Server)
+
+A dedicated server owns the game state. All players are equal clients. [dive deeper →](https://www.perplexity.ai/search?q=dedicated+server+architecture+multiplayer+games)
+
+**How it works:**
+```
+Player A → Server ← Player B
+              ↓
+          Player C
+```
+
+**Pros:**
+- Consistent experience for all players
+- Server can validate/prevent cheating
+- Server can persist state, handle reconnects
+- Professional hosting options (Hathora, etc.)
+
+**Cons:**
+- Requires server infrastructure
+- Added complexity
+- Server costs money
+
+**Used by:** Counter-Strike, Fortnite, most competitive games
+
+<Tradeoffs title="Which approach for Echelon?">
+
+| Factor | P2P | Host-Auth | Client-Server |
+|--------|-----|-----------|---------------|
+| Fairness | No authority | Host advantage | Equal for all |
+| Cheating | Easy | Host can cheat | Server validates |
+| Complexity | Simple | Medium | Higher |
+| Cost | Free | Free | Server costs |
+| Reconnection | Hard | Host migration | Clean reconnect |
+
+**Our choice: Client-Server**
+
+Echelon needs consistent state for heat systems, AI guards, and objectives. We can't have players seeing different heat levels or objective states. Client-server gives us the foundation to build authoritative game systems.
+
+For development, we'll use a simple WebSocket server. For production, we could use [Hathora](https://hathora.dev/), [Colyseus Cloud](https://colyseus.io/), or self-host. [dive deeper →](https://www.perplexity.ai/search?q=game+server+hosting+options+hathora+colyseus+2024)
+
+</Tradeoffs>
+
+---
+
+## The Key Concepts
+
+Before we start building, we need to internalize three concepts that will guide every networking decision.
+
+### Concept 1: Authority
+
+**Authority** means "who is the source of truth for this piece of state?" [dive deeper →](https://www.perplexity.ai/search?q=server+authority+vs+client+authority+multiplayer+games)
+
+For critical game state, the server is authoritative:
+- Heat level (POC 2)
+- Objective completion (POC 4)
+- Guard positions (POC 3)
+- Player health
+- Inventory
+
+For responsive interactions, the client can be authoritative (with server validation):
+- Player movement (predict locally, server corrects)
+- Visual effects (cosmetic only)
+
+<Pitfall title="Never trust the client for critical state">
+
+If the client tells the server "I completed the objective," a cheater can just send that message without actually completing anything. 
+
+The correct pattern:
+1. Client sends: "I'm interacting with the terminal"
+2. Server validates: Is the player near the terminal? Is the terminal hackable?
+3. Server runs the interaction: 10-second timer, server-side
+4. Server broadcasts: "Objective complete"
+
+The client can show progress UI locally, but the server decides when it's actually done.
+
+[dive deeper on Perplexity →](https://www.perplexity.ai/search?q=why+never+trust+the+client+game+security+cheating)
+
+</Pitfall>
+
+### Concept 2: Client-Side Prediction
+
+**Prediction** means the client immediately shows the result of player actions without waiting for server confirmation. [dive deeper →](https://www.perplexity.ai/search?q=client+side+prediction+multiplayer+games+how+it+works)
+
+When you press "forward":
+1. **Without prediction:** Press key → wait 100ms → server confirms → you move (feels laggy)
+2. **With prediction:** Press key → you move immediately → server confirms later (feels responsive)
+
+The catch: sometimes you'll be wrong. The server might say "actually, you collided with something" or "actually, you were stunned." When that happens, you need to correct smoothly.
+
+<LearnMore title="How prediction actually works">
+
+**The input buffer pattern:** [dive deeper →](https://www.perplexity.ai/search?q=input+buffer+client+prediction+server+reconciliation)
+
+```typescript
+// Client sends inputs with sequence numbers
+const input = { seq: 42, keys: { forward: true, right: false }, dt: 0.016 }
+sendToServer(input)
+
+// Client also predicts locally
+localPlayer.position.add(calculateMovement(input))
+
+// Server processes and sends authoritative state
+// { seq: 42, position: { x: 10, y: 0, z: 5 }, ... }
+
+// Client compares predicted position to server position
+// If different, smoothly correct (interpolate, don't snap)
+```
+
+**What can be predicted:**
+- Movement (most common)
+- Weapon firing animations
+- Visual feedback (hit markers, etc.)
+
+**What should NOT be predicted:**
+- Damage dealt (server calculates)
+- Inventory changes (server authoritative)
+- Objective state (server authoritative)
+- Other players' actions (you can't predict them)
+
+</LearnMore>
+
+### Concept 3: Interpolation and Snapshots
+
+**Interpolation** is how we make other players (and networked objects) move smoothly despite only receiving updates 20-30 times per second. [dive deeper →](https://www.perplexity.ai/search?q=interpolation+vs+extrapolation+multiplayer+games+networking)
+
+The server sends "snapshots" of game state periodically. Between snapshots, clients interpolate — smoothly blending between the last known positions.
+
+```
+Server sends:  [t=0, x=0] ........ [t=100ms, x=10] ........ [t=200ms, x=20]
+Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
+```
+
+This introduces a small delay (usually one snapshot period, ~50ms) but makes everything look smooth.
+
+<IndustryExample game="Left 4 Dead 2" relevance="co-op with AI sync">
+
+Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay. Clients receive snapshots and interpolate between them. [dive deeper →](https://www.perplexity.ai/search?q=left+4+dead+2+source+engine+networking+tick+rate)
+
+For AI zombies, the server is fully authoritative — clients just render where the server says zombies are. This ensures all players see zombies in the same positions, which is critical for cooperative gameplay.
+
+For player movement, clients predict their own movement but interpolate other players. This means your own character feels instant, while teammates appear smooth but slightly delayed.
+
+The key insight: **you only predict yourself, you interpolate everyone else.**
+
+</IndustryExample>
+
+---
+
+## Our Stack
+
+We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 3D rendering, with a WebSocket-based networking layer. [dive deeper →](https://www.perplexity.ai/search?q=pmndrs+poimandres+react+three+fiber+ecosystem)
+
+### Core Technologies
+
+**React Three Fiber (R3F)**
+The React renderer for Three.js. Lets us build 3D scenes with React components. We'll use this for all game rendering. [dive deeper →](https://www.perplexity.ai/search?q=react+three+fiber+vs+vanilla+threejs+pros+cons)
+
+**Zustand**
+Minimal state management from the pmndrs ecosystem. R3F uses it internally, and we'll use it for local game state. Important: Zustand is client-side only — we need networking to sync between clients. [dive deeper →](https://www.perplexity.ai/search?q=zustand+state+management+react+three+fiber)
+
+**WebSockets**
+The transport layer for real-time communication. We have options for the server: [dive deeper →](https://www.perplexity.ai/search?q=websocket+vs+webrtc+for+multiplayer+games)
+
+| Option | Complexity | Best For |
+|--------|------------|----------|
+| [PartyKit](https://partykit.io/) | Low | Quick prototypes, edge deployment |
+| [Socket.io](https://socket.io/) | Medium | Traditional WebSocket server |
+| [Colyseus](https://colyseus.io/) | Medium-High | Game-specific features (rooms, state sync) |
+| [Hathora](https://hathora.dev/) | Medium | Production game hosting |
+
+**For this POC, we'll use PartyKit** — it's the fastest way to get a WebSocket server running, deploys to the edge (low latency), and has excellent DX. [dive deeper →](https://www.perplexity.ai/search?q=partykit+websocket+edge+deployment+tutorial)
+
+### Relevant Resources
+
+**Tutorials:**
+- [Wawa Sensei: Multiplayer R3F with Socket.io](https://wawasensei.dev/tuto/build-a-multiplayer-game-with-react-three-fiber-and-socket-io) — 7-part series building a Sims-like multiplayer game
+- [Maya Nedeljković Batić: R3F + WebSocket Game](https://www.maya-ndljk.com/talks/r3f-websocket-game) — Conference talk with code
+
+**Foundational Reading:**
+- [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) — Essential concepts
+- [Valve: Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — Production-grade patterns
+- [Gabriel Gambetta: Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — Interactive explanations with diagrams
+
+**Libraries:**
+- [PartyKit](https://partykit.io/) — Edge-deployed WebSocket server
+- [Playroom Kit](https://joinplayroom.com/) — Multiplayer React hooks (alternative approach)
+- [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) — Physics, which we'll need to sync in POC 1
+
+---
+
+## What We're Building
+
+This POC is intentionally minimal. We're not building a game — we're building the foundation and validating it works.
+
+### The Test Scenario
+
+Two players connect to a shared 3D space. Each player can move around. Both players see each other's movements in real-time.
+
+That's it. No shooting, no objectives, no physics. Just movement sync.
+
+**Why so minimal?**
+
+Movement sync is the canary in the coal mine. If we can't make two players see each other moving smoothly, everything else will fail. By keeping scope minimal, we can:
+
+1. Focus entirely on networking correctness
+2. Measure latency and consistency precisely
+3. Iterate quickly on the foundation
+4. Build confidence before adding complexity
 
 ### Success Criteria
 
-- Two players can connect reliably
-- Player movement feels responsive and consistent
-- Connection handling is robust (handles disconnects gracefully)
-- Network architecture supports all planned systems
-- Latency is acceptable for responsive gameplay
-- Reconnection works without losing game state
+| Criteria | Target | How We'll Measure |
+|----------|--------|-------------------|
+| Connection reliability | 99%+ | Connect/disconnect 100 times, count failures |
+| Movement consistency | No visible desync | Record both screens, compare |
+| Latency tolerance | < 150ms feels good | Artificial latency testing |
+| Reconnection | Works within 10s | Disconnect WiFi, reconnect, verify state |
 
-## Decision
+---
 
-*This section will document our decision once we complete the POC.*
+## Step-by-Step Implementation
 
-Once we complete testing, we'll document: which networking architecture we chose, what tick rate we're using, and how we're handling authority vs prediction.
+### Step 1: Set Up PartyKit Server
+
+PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. [dive deeper →](https://www.perplexity.ai/search?q=partykit+cloudflare+workers+websocket+server+setup)
+
+<CodeWalkthrough title="PartyKit server setup">
+
+```typescript
+// party/main.ts
+import type { PartyKitServer, PartyConnection } from "partykit/server"
+
+interface Player {
+  id: string
+  position: { x: number; y: number; z: number }
+  rotation: number
+}
+
+interface GameState {
+  players: Map<string, Player>
+}
+
+export default {
+  // Called when a new player connects
+  onConnect(connection: PartyConnection, room) {
+    const state = room.storage.get("state") as GameState ?? { players: new Map() }
+    
+    // Add new player
+    state.players.set(connection.id, {
+      id: connection.id,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: 0,
+    })
+    
+    // Send current state to the new player
+    connection.send(JSON.stringify({
+      type: "init",
+      playerId: connection.id,
+      players: Array.from(state.players.values()),
+    }))
+    
+    // Broadcast new player to everyone else
+    room.broadcast(JSON.stringify({
+      type: "player-joined",
+      player: state.players.get(connection.id),
+    }), [connection.id])
+    
+    room.storage.put("state", state)
+  },
+  
+  // Called when player sends a message (e.g., movement input)
+  onMessage(message: string, connection: PartyConnection, room) {
+    const data = JSON.parse(message)
+    const state = room.storage.get("state") as GameState
+    
+    if (data.type === "move") {
+      // Server validates and updates authoritative position
+      const player = state.players.get(connection.id)
+      if (player) {
+        // In a real game, we'd validate this movement
+        player.position = data.position
+        player.rotation = data.rotation
+        
+        // Broadcast to all clients
+        room.broadcast(JSON.stringify({
+          type: "player-moved",
+          playerId: connection.id,
+          position: data.position,
+          rotation: data.rotation,
+        }))
+      }
+    }
+    
+    room.storage.put("state", state)
+  },
+  
+  // Called when player disconnects
+  onClose(connection: PartyConnection, room) {
+    const state = room.storage.get("state") as GameState
+    state.players.delete(connection.id)
+    
+    room.broadcast(JSON.stringify({
+      type: "player-left",
+      playerId: connection.id,
+    }))
+    
+    room.storage.put("state", state)
+  },
+} satisfies PartyKitServer
+```
+
+**Key points:**
+- Server owns the `GameState` — it's the source of truth
+- On connect: initialize player, send current state, broadcast to others
+- On message: validate input, update state, broadcast changes
+- On disconnect: clean up player, notify others
+
+</CodeWalkthrough>
+
+### Step 2: Client Connection Hook
+
+A React hook to manage the WebSocket connection and state. [dive deeper →](https://www.perplexity.ai/search?q=react+websocket+hook+pattern+real+time+state)
+
+<CodeWalkthrough title="useMultiplayer hook">
+
+```typescript
+// hooks/useMultiplayer.ts
+import { useEffect, useRef, useState } from "react"
+import usePartySocket from "partysocket/react"
+
+interface Player {
+  id: string
+  position: { x: number; y: number; z: number }
+  rotation: number
+}
+
+interface MultiplayerState {
+  connected: boolean
+  playerId: string | null
+  players: Map<string, Player>
+}
+
+export function useMultiplayer(roomId: string) {
+  const [state, setState] = useState<MultiplayerState>({
+    connected: false,
+    playerId: null,
+    players: new Map(),
+  })
+  
+  const socket = usePartySocket({
+    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
+    room: roomId,
+    
+    onOpen() {
+      setState(prev => ({ ...prev, connected: true }))
+    },
+    
+    onMessage(event) {
+      const data = JSON.parse(event.data)
+      
+      switch (data.type) {
+        case "init":
+          setState(prev => ({
+            ...prev,
+            playerId: data.playerId,
+            players: new Map(data.players.map((p: Player) => [p.id, p])),
+          }))
+          break
+          
+        case "player-joined":
+          setState(prev => {
+            const players = new Map(prev.players)
+            players.set(data.player.id, data.player)
+            return { ...prev, players }
+          })
+          break
+          
+        case "player-moved":
+          setState(prev => {
+            const players = new Map(prev.players)
+            const player = players.get(data.playerId)
+            if (player) {
+              player.position = data.position
+              player.rotation = data.rotation
+            }
+            return { ...prev, players }
+          })
+          break
+          
+        case "player-left":
+          setState(prev => {
+            const players = new Map(prev.players)
+            players.delete(data.playerId)
+            return { ...prev, players }
+          })
+          break
+      }
+    },
+    
+    onClose() {
+      setState(prev => ({ ...prev, connected: false }))
+    },
+  })
+  
+  const sendMove = (position: { x: number; y: number; z: number }, rotation: number) => {
+    socket.send(JSON.stringify({ type: "move", position, rotation }))
+  }
+  
+  return { ...state, sendMove }
+}
+```
+
+**Key points:**
+- `usePartySocket` handles connection lifecycle
+- State updates on each message type
+- `sendMove` is how we tell the server we moved
+
+</CodeWalkthrough>
+
+### Step 3: Game Scene with Player Rendering
+
+The React Three Fiber scene that renders all players. [dive deeper →](https://www.perplexity.ai/search?q=react+three+fiber+multiplayer+scene+rendering+players)
+
+<CodeWalkthrough title="Multiplayer scene">
+
+```tsx
+// components/MultiplayerScene.tsx
+import { Canvas } from "@react-three/fiber"
+import { OrbitControls } from "@react-three/drei"
+import { useMultiplayer } from "@/hooks/useMultiplayer"
+import { LocalPlayer } from "./LocalPlayer"
+import { RemotePlayer } from "./RemotePlayer"
+
+export function MultiplayerScene({ roomId }: { roomId: string }) {
+  const { connected, playerId, players, sendMove } = useMultiplayer(roomId)
+  
+  if (!connected) {
+    return <div>Connecting...</div>
+  }
+  
+  return (
+    <Canvas camera={{ position: [0, 10, 10] }}>
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[10, 10, 5]} />
+      
+      {/* Ground plane */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+        <planeGeometry args={[20, 20]} />
+        <meshStandardMaterial color="#333" />
+      </mesh>
+      
+      {/* Render all players */}
+      {Array.from(players.values()).map(player => (
+        player.id === playerId ? (
+          <LocalPlayer 
+            key={player.id}
+            initialPosition={player.position}
+            onMove={sendMove}
+          />
+        ) : (
+          <RemotePlayer
+            key={player.id}
+            player={player}
+          />
+        )
+      ))}
+      
+      <OrbitControls />
+    </Canvas>
+  )
+}
+```
+
+**Key distinction:**
+- `LocalPlayer` handles input and prediction (you control it)
+- `RemotePlayer` interpolates from network updates (you observe it)
+
+</CodeWalkthrough>
+
+### Step 4: Local Player with Prediction
+
+The local player predicts movement immediately, then sends to server. [dive deeper →](https://www.perplexity.ai/search?q=client+side+prediction+implementation+javascript)
+
+<CodeWalkthrough title="LocalPlayer with client-side prediction">
+
+```tsx
+// components/LocalPlayer.tsx
+import { useRef } from "react"
+import { useFrame } from "@react-three/fiber"
+import { useKeyboardControls } from "@react-three/drei"
+import * as THREE from "three"
+
+interface LocalPlayerProps {
+  initialPosition: { x: number; y: number; z: number }
+  onMove: (position: { x: number; y: number; z: number }, rotation: number) => void
+}
+
+export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
+  const meshRef = useRef<THREE.Mesh>(null)
+  const positionRef = useRef(new THREE.Vector3(
+    initialPosition.x, 
+    initialPosition.y, 
+    initialPosition.z
+  ))
+  const lastSentRef = useRef(0)
+  
+  // Keyboard input (WASD)
+  const [, getKeys] = useKeyboardControls()
+  
+  useFrame((_, delta) => {
+    if (!meshRef.current) return
+    
+    const { forward, backward, left, right } = getKeys()
+    const speed = 5
+    const movement = new THREE.Vector3()
+    
+    // Calculate movement direction
+    if (forward) movement.z -= 1
+    if (backward) movement.z += 1
+    if (left) movement.x -= 1
+    if (right) movement.x += 1
+    
+    if (movement.length() > 0) {
+      movement.normalize().multiplyScalar(speed * delta)
+      positionRef.current.add(movement)
+      
+      // Update mesh position (immediate prediction)
+      meshRef.current.position.copy(positionRef.current)
+      
+      // Send to server at ~20Hz (not every frame)
+      const now = Date.now()
+      if (now - lastSentRef.current > 50) {
+        onMove(
+          { x: positionRef.current.x, y: positionRef.current.y, z: positionRef.current.z },
+          meshRef.current.rotation.y
+        )
+        lastSentRef.current = now
+      }
+    }
+  })
+  
+  return (
+    <mesh ref={meshRef} position={[initialPosition.x, 0.5, initialPosition.z]}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color="blue" />
+    </mesh>
+  )
+}
+```
+
+**Key patterns:**
+- Movement updates immediately (prediction)
+- Network updates throttled to ~20Hz
+- Position stored in ref to avoid re-renders
+
+</CodeWalkthrough>
+
+### Step 5: Remote Player with Interpolation
+
+Remote players interpolate smoothly between network updates. [dive deeper →](https://www.perplexity.ai/search?q=lerp+interpolation+smooth+movement+game+networking)
+
+<CodeWalkthrough title="RemotePlayer with interpolation">
+
+```tsx
+// components/RemotePlayer.tsx
+import { useRef, useEffect } from "react"
+import { useFrame } from "@react-three/fiber"
+import * as THREE from "three"
+
+interface Player {
+  id: string
+  position: { x: number; y: number; z: number }
+  rotation: number
+}
+
+export function RemotePlayer({ player }: { player: Player }) {
+  const meshRef = useRef<THREE.Mesh>(null)
+  const targetPosition = useRef(new THREE.Vector3(
+    player.position.x,
+    0.5,
+    player.position.z
+  ))
+  
+  // Update target when we receive network updates
+  useEffect(() => {
+    targetPosition.current.set(
+      player.position.x,
+      0.5,
+      player.position.z
+    )
+  }, [player.position])
+  
+  // Smoothly interpolate toward target
+  useFrame((_, delta) => {
+    if (!meshRef.current) return
+    
+    // Lerp toward target position (smoothing factor)
+    meshRef.current.position.lerp(targetPosition.current, Math.min(1, delta * 10))
+  })
+  
+  return (
+    <mesh ref={meshRef} position={[player.position.x, 0.5, player.position.z]}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color="red" />
+    </mesh>
+  )
+}
+```
+
+**Key patterns:**
+- Target position updates from network
+- Current position lerps toward target each frame
+- `delta * 10` gives ~100ms smoothing
+
+</CodeWalkthrough>
+
+---
+
+## What We'll Learn From This
+
+After building and testing this minimal multiplayer foundation, we should be able to answer:
+
+1. **Latency tolerance:** At what RTT does movement start feeling laggy?
+2. **Update frequency:** Is 20Hz enough, or do we need higher? [dive deeper →](https://www.perplexity.ai/search?q=tick+rate+update+frequency+multiplayer+games+optimal)
+3. **Interpolation quality:** Does lerp-based interpolation look smooth?
+4. **Connection handling:** How quickly can we detect and handle disconnects?
+5. **State recovery:** Can players rejoin seamlessly?
+
+These answers will inform every subsequent POC:
+- **POC 1 (Destruction):** How do we sync physics events? [dive deeper →](https://www.perplexity.ai/search?q=syncing+physics+destruction+multiplayer+games)
+- **POC 2 (Heat):** Is server-authoritative heat responsive enough?
+- **POC 3 (AI):** Can we sync guard positions at acceptable bandwidth?
+- **POC 4 (Objectives):** How do we handle objective interaction timing?
+
+---
+
+## Instrumentation
+
+We need to measure what matters: [dive deeper →](https://www.perplexity.ai/search?q=measuring+network+latency+jitter+multiplayer+games)
+
+```typescript
+// Metrics to track
+interface NetworkMetrics {
+  rtt: number           // Round-trip time in ms
+  jitter: number        // RTT variance
+  updateRate: number    // Updates received per second
+  bytesPerSecond: number
+  disconnects: number
+  reconnectTime: number // ms to successfully reconnect
+}
+```
+
+We'll add a debug overlay showing these metrics in real-time, and log aggregated data for analysis.
+
+---
 
 ## Open Questions
 
-- What's the maximum acceptable latency for tight co-op feel?
-- Can players rejoin mid-mission, or only at lobby?
-- How do we handle state reconciliation after network hiccups?
+Things we'll discover during implementation:
 
-## Integration Notes
+- Should we use delta compression or full snapshots? [dive deeper →](https://www.perplexity.ai/search?q=delta+compression+vs+full+snapshots+game+networking)
+- How do we handle the first few frames before interpolation has data?
+- What's the right smoothing factor for interpolation?
+- Should we add extrapolation (predicting where remote players are going)? [dive deeper →](https://www.perplexity.ai/search?q=extrapolation+dead+reckoning+multiplayer+games)
+- How do we visualize connection quality to players?
 
-This POC enables all other POCs:
+---
 
-- **POC 1: Destruction** - Destruction state must sync across clients
-- **POC 2: Heat System** - Heat state needs server authority
-- **POC 3: AI Guards** - Guard positions and states must sync
-- **POC 4: Co-op Objectives** - Objective progress needs shared state
-- **POC 5: Economy** - Credit and loadout data must persist
-- **POC 7: Mission Flow** - Lobby and matchmaking depend on networking
+## Next Steps
+
+Once this POC is complete and validated:
+
+1. **Document decisions:** What tick rate, what interpolation approach, what worked
+2. **Create shared utilities:** Connection hooks, player sync components
+3. **Move to POC 1:** Add physics and test destruction sync
+
+The foundation we build here will carry through the entire project. Take time to get it right.
