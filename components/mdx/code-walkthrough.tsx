@@ -24,7 +24,7 @@ export function CodeWalkthrough({
   return (
     <Accordion
       type="single"
-      defaultValue={defaultOpen ? "code" : undefined}
+      {...(defaultOpen ? { defaultValue: "code" } : {})}
       collapsible
       className={cn("my-4 border", className)}
     >

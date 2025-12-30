@@ -24,7 +24,7 @@ export function LearnMore({
   return (
     <Accordion
       type="single"
-      defaultValue={defaultOpen ? "content" : undefined}
+      {...(defaultOpen ? { defaultValue: "content" } : {})}
       collapsible
       className={cn("my-4 border", className)}
     >

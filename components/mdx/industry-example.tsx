@@ -28,7 +28,7 @@ export function IndustryExample({
   return (
     <Accordion
       type="single"
-      defaultValue={defaultOpen ? "example" : undefined}
+      {...(defaultOpen ? { defaultValue: "example" } : {})}
       collapsible
       className={cn("my-4 border", className)}
     >

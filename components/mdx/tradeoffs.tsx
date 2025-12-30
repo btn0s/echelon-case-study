@@ -24,7 +24,7 @@ export function Tradeoffs({
   return (
     <Accordion
       type="single"
-      defaultValue={defaultOpen ? "tradeoffs" : undefined}
+      {...(defaultOpen ? { defaultValue: "tradeoffs" } : {})}
       collapsible
       className={cn("my-4 border", className)}
     >

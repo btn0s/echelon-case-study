@@ -24,7 +24,7 @@ export function Concept({
   return (
     <Accordion
       type="single"
-      defaultValue={defaultOpen ? "concept" : undefined}
+      {...(defaultOpen ? { defaultValue: "concept" } : {})}
       collapsible
       className={cn("my-4 border", className)}
     >
