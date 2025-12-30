@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { POCNavigation } from "@/components/poc-navigation";
 
 export default function POCLayout({
   children,
@@ -22,6 +23,8 @@ export default function POCLayout({
         <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
           {children}
         </div>
+
+        <POCNavigation />
       </div>
     </div>
   );

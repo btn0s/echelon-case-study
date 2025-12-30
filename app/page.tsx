@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { POCS } from "@/lib/pocs";
 import { QUESTIONS } from "@/lib/caseStudy/questions";
-import { ArrowUpRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowUpRight, ArrowRight } from "lucide-react";
 
 export default function HomePage() {
   const totalQuestions = QUESTIONS.length;
@@ -122,15 +121,16 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section className="not-prose mt-12 pt-8">
-            <div className="flex justify-end">
-              <Link href={`/poc/${POCS[0]?.slug || ""}`}>
-                <Button variant="default" size="sm">
-                  Start Reading <ArrowUpRight className="size-3 ml-1" />
-                </Button>
-              </Link>
-            </div>
-          </section>
+          <nav className="not-prose flex items-center justify-between border-t pt-8 mt-12">
+            <div />
+            <Link
+              href={`/poc/${POCS[0]?.slug || ""}`}
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span>{POCS[0]?.title}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </nav>
         </div>
       </div>
     </div>
