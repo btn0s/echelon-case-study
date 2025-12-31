@@ -126,6 +126,107 @@
   }
 }
 
+:root {
+  --sh-class: #2d5e9d;
+  --sh-identifier: #354150;
+  --sh-sign: #8996a3;
+  --sh-string: #007f7a;
+  --sh-keyword: #e02518;
+  --sh-comment: #a19595;
+  --sh-jsxliterals: #6266d1;
+  --sh-property: #e25a1c;
+  --sh-entity: #e25a1c;
+}
+
+.dark {
+  --sh-class: #4c97f8;
+  --sh-identifier: #e4e4e7;
+  --sh-sign: #a1a1aa;
+  --sh-string: #0fa295;
+  --sh-keyword: #f47067;
+  --sh-comment: #71717a;
+  --sh-jsxliterals: #818cf8;
+  --sh-property: #fb923c;
+  --sh-entity: #fb923c;
+}
+
+.prose .anchor {
+  @apply absolute invisible no-underline;
+  margin-left: -1em;
+  padding-right: 0.5em;
+  width: 80%;
+  max-width: 700px;
+  cursor: pointer;
+}
+
+.anchor:hover {
+  @apply visible;
+}
+
+.prose .anchor:after {
+  @apply text-neutral-300 dark:text-neutral-700;
+  content: '#';
+}
+
+.prose *:hover > .anchor {
+  @apply visible;
+}
+
+.prose pre {
+  @apply bg-neutral-50 dark:bg-neutral-950 rounded-lg overflow-x-auto border border-neutral-200 dark:border-neutral-800 py-2 px-3 text-sm;
+  color: var(--foreground);
+}
+
+.prose code {
+  @apply px-1 py-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-900;
+  color: var(--foreground);
+}
+
+.prose pre code {
+  @apply p-0 bg-transparent;
+  border: initial;
+  line-height: 1.5;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  white-space: pre;
+}
+
+.prose code span {
+  @apply font-medium;
+}
+
+/* Ensure sugar-high spans inherit proper colors */
+.prose pre code span {
+  color: inherit;
+}
+
+/* ASCII art and plain text code blocks - ensure visibility */
+.prose pre code:not([class*="language-"]),
+.prose pre code[class*="language-text"],
+.prose pre code[class*="language-plaintext"] {
+  color: var(--foreground);
+}
+
 pre {
   @apply p-4 rounded-md border shadow-xs;
+}
+
+.prose table {
+  @apply w-full border-collapse my-4;
+}
+
+.prose thead {
+  @apply border-b border-neutral-200 dark:border-neutral-800;
+}
+
+.prose th {
+  @apply px-4 py-2 text-left font-medium text-neutral-900 dark:text-neutral-100;
+}
+
+.prose td {
+  @apply px-4 py-2 border-b border-neutral-100 dark:border-neutral-900 text-neutral-700 dark:text-neutral-300;
+}
+
+.prose tbody tr:hover {
+  @apply bg-neutral-50 dark:bg-neutral-900/50;
 }
