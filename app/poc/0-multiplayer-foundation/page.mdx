@@ -177,6 +177,7 @@ This split is the foundation: **server authoritative for critical state, client 
 If the client tells the server "I completed the objective," a cheater can just send that message without actually doing anything.
 
 The correct pattern:
+
 1. Client sends: "I'm interacting with the terminal"
 2. Server validates: Is the player near the terminal? Is the terminal hackable?
 3. Server runs the interaction (10-second timer, server-side)
@@ -245,6 +246,62 @@ For player movement, clients predict their own movement but interpolate teammate
 # Implementation
 
 With the architecture and concepts covered, let's look at what we're building and the tools we'll use.
+
+## What We're Building
+
+A minimal multiplayer foundation: two players in a shared 3D space, moving smoothly. No shooting, no objectives, no physics. Just movement sync.
+
+Movement sync is the canary. If two players can't see each other moving smoothly, everything else fails — destruction won't sync, heat will desync, objectives will race. We validate the foundation before building on it.
+
+### The Architecture
+
+Every client-server multiplayer game has four pieces:
+
+| Piece | Role | Technique |
+|-------|------|-----------|
+| **Server** | Owns game state, broadcasts updates | Authority |
+| **Connection Manager** | Handles WebSocket lifecycle, routes messages | Transport |
+| **Local Controller** | Handles input, moves immediately | Prediction |
+| **Remote Renderer** | Receives updates, animates smoothly | Interpolation |
+
+**The data flow:**
+
+1. Player presses forward → local controller moves immediately (prediction)
+2. Client sends position update to server
+3. Server updates authoritative state, broadcasts to all clients
+4. Other clients receive update → remote renderer interpolates to new position
+
+This maps directly to the concepts from [The Key Concepts](#the-key-concepts):
+- **Authority** → Server owns state. Clients propose, server decides.
+- **Prediction** → Local controller moves before confirmation. Feels instant.
+- **Interpolation** → Remote renderer smooths between updates. Looks smooth.
+
+### Scope Constraints
+
+What we're explicitly **not** building:
+
+- **Physics** — No collisions. Movement is pure translation.
+- **Input-based sync** — Clients send positions, not inputs. Not secure, but fastest to validate.
+- **Server reconciliation** — No correction when server disagrees. Comes in later POCs.
+- **Interpolation buffer** — Direct lerp to latest position, no snapshot buffering.
+
+These are intentional simplifications. Each defers complexity to validate the core: can two players see each other moving smoothly?
+
+### Success Criteria
+
+| Criteria | Target | Why It Matters |
+|----------|--------|----------------|
+| Connection | 99%+ reliability | If connections drop, nothing else works |
+| Movement sync | No visible desync | Players must agree on where each other are |
+| Latency tolerance | \<150ms feels good | Validates prediction/interpolation work |
+| Reconnection | Rejoin within 10s | Validates state persistence and recovery |
+
+**How we'll measure:**
+- Connect/disconnect 100 times, count failures
+- Record both screens, compare player positions frame-by-frame
+- Add artificial latency (50ms, 100ms, 150ms, 200ms), observe feel
+- Kill WiFi mid-session, reconnect, verify state matches
+
 ## Our Stack
 
 We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 3D rendering, with a WebSocket-based networking layer. <PerplexityLink query="pmndrs poimandres react three fiber ecosystem" />
@@ -277,46 +334,6 @@ The transport layer for real-time communication. We have options for the server:
 Not Socket.io. Not Colyseus. Not Hathora. PartyKit because it's fastest to validate, free tier covers our needs, deploys automatically. 
 
 **Important nuance:** PartyKit rooms are backed by Cloudflare Durable Objects, instantiated in a single location (optionally influenced by `locationHint`). A room provides low latency when players are near that location, but doesn't automatically distribute globally. For co-op games with players in the same region, this works well. For global distribution, you'd need region-specific rooms or a different approach. <PerplexityLink query="partykit websocket edge deployment tutorial" />
-
-### Relevant Resources
-
-**Tutorials:**
-- [Wawa Sensei: Multiplayer R3F with Socket.io](https://wawasensei.dev/tuto/build-a-multiplayer-game-with-react-three-fiber-and-socket-io) — 7-part series building a Sims-like multiplayer game
-- [Maya Nedeljković Batić: R3F + WebSocket Game](https://www.maya-ndljk.com/talks/r3f-websocket-game) — Conference talk with code
-
-**Foundational Reading:**
-- [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) (Nov 28, 2014) — Essential concepts
-- [Gaffer on Games: State Synchronization](https://gafferongames.com/post/state_synchronization/) (Jan 5, 2015) — Detailed implementation patterns
-- [Valve: Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — Production-grade patterns
-- [Gabriel Gambetta: Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — Interactive explanations with diagrams
-
-**Libraries:**
-- [PartyKit](https://partykit.io/) — Edge-deployed WebSocket server (backed by Cloudflare Durable Objects)
-- [Playroom Kit](https://joinplayroom.com/) — Multiplayer React hooks (alternative approach)
-- [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) — Physics, which we'll need to sync in POC 1
-
-## What We're Building
-
-This POC is intentionally minimal. We're not building a game — we're building the foundation and validating it works.
-
-### The Test Scenario
-
-Two players connect to a shared 3D space. Each player can move around. Both players see each other's movements in real-time.
-
-That's it. No shooting, no objectives, no physics. Just movement sync.
-
-**Why so minimal?**
-
-Movement sync is the canary in the coal mine. If we can't make two players see each other moving smoothly, everything else fails. By keeping scope minimal, we focus entirely on networking correctness. Measure latency precisely. Iterate quickly. Build confidence before adding complexity.
-
-### Success Criteria
-
-| Criteria | Target | How We'll Measure |
-|----------|--------|-------------------|
-| Connection reliability | 99%+ | Connect/disconnect 100 times, count failures |
-| Movement consistency | No visible desync | Record both screens, compare |
-| Latency tolerance | < 150ms feels good | Artificial latency testing |
-| Reconnection | Works within 10s | Disconnect WiFi, reconnect, verify state |
 
 <Anchor id="step-by-step-implementation" />
 ## Step-by-Step Implementation
@@ -888,3 +905,20 @@ With the foundation validated:
 3. **Add metrics overlay** — Visualize RTT, jitter, update rate for debugging
 
 The foundation carries through the entire project. Movement sync works. Now we build on it.
+
+## Resources
+
+**Tutorials:**
+- [Wawa Sensei: Multiplayer R3F with Socket.io](https://wawasensei.dev/tuto/build-a-multiplayer-game-with-react-three-fiber-and-socket-io) — 7-part series building a Sims-like multiplayer game
+- [Maya Nedeljković Batić: R3F + WebSocket Game](https://www.maya-ndljk.com/talks/r3f-websocket-game) — Conference talk with code
+
+**Foundational Reading:**
+- [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) (Nov 28, 2014) — Essential concepts
+- [Gaffer on Games: State Synchronization](https://gafferongames.com/post/state_synchronization/) (Jan 5, 2015) — Detailed implementation patterns
+- [Valve: Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — Production-grade patterns
+- [Gabriel Gambetta: Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — Interactive explanations with diagrams
+
+**Libraries:**
+- [PartyKit](https://partykit.io/) — Edge-deployed WebSocket server (backed by Cloudflare Durable Objects)
+- [Playroom Kit](https://joinplayroom.com/) — Multiplayer React hooks (alternative approach)
+- [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) — Physics, which we'll need to sync in POC 1
