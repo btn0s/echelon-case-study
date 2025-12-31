@@ -1,4 +1,5 @@
 import fs from 'fs'
+import path from 'path'
 
 type Metadata = {
   title: string
@@ -34,4 +35,33 @@ function parseFrontmatter(fileContent: string) {
 export function readMDXFile(filePath: string) {
   const rawContent = fs.readFileSync(filePath, 'utf-8')
   return parseFrontmatter(rawContent)
+}
+
+function getMDXFiles(dir: string) {
+  return fs.readdirSync(dir).filter((file) => path.extname(file) === '.mdx')
+}
+
+function getMDXData(dir: string) {
+  const mdxFiles = getMDXFiles(dir)
+  return mdxFiles.map((file) => {
+    const { metadata, content } = readMDXFile(path.join(dir, file))
+    const slug = path.basename(file, path.extname(file))
+
+    return {
+      metadata,
+      slug,
+      content,
+    }
+  })
+}
+
+export function getPosts(dir: string | string[]) {
+  const dirPath = Array.isArray(dir)
+    ? path.join(process.cwd(), ...dir)
+    : dir
+  return getMDXData(dirPath)
+}
+
+export function getPOCPosts() {
+  return getPosts(['app', 'poc', 'posts'])
 }
