@@ -9,7 +9,18 @@ Before destructible walls, heat systems, or Super encounters, we need the boring
 
 The core problem is latency. Your input has to go to a server and back — typically 20-150ms depending on distance. If you wait for confirmation, movement feels sluggish. If you move immediately, you might be wrong. This POC builds the smallest system that resolves that tension between responsiveness and authority in co-op movement sync.
 
-Before we build, we’re going to earn a bit of context: latency, authority, and the tradeoffs that let co-op feel immediate without clients disagreeing about what’s true.
+<Anchor id="concepts-in-60-seconds" />
+## Concepts in 60 Seconds
+
+Three terms you'll need:
+
+**Authority** — A single source of truth. One entity determines what's correct when multiple versions of state exist.
+
+**Prediction** — Acting on assumptions before confirmation. Making decisions based on expected outcomes rather than waiting for verification.
+
+**Interpolation** — Estimating intermediate values between known data points. Smoothly filling gaps between discrete updates.
+
+The pattern: pick an authority; predict yourself; interpolate everyone else.
 
 <Anchor id="why-multiplayer-is-hard" />
 ## Why Multiplayer is Hard
@@ -18,19 +29,13 @@ Before we build, we’re going to earn a bit of context: latency, authority, and
 
 Press "move forward" on your keyboard. That input travels through wires to a server and back. That round trip is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
 
-One note on language: in this POC, when we say “server,” we mean “the authoritative machine.” In co-op, that’s usually the host.
-
-For single-player, this is irrelevant. For multiplayer, it creates a paradox:
-
-- Wait for the host to confirm, and movement feels sluggish
-- Show movement immediately, and you might be wrong about where you are
-- Two players interact with the same object — who wins?
+One note on language: in this POC, when we say "server," we mean "the authoritative machine." In co-op, that's usually the host.
 
 **Try it for yourself** — click the demo, hold WASD, and flip between 0ms, 50ms, 100ms, 150ms, 200ms.
 
 <LatencyDemo />
 
-If you felt that “dead air” between intent and motion, that’s the whole problem. Here’s a rough mapping from RTT to how it reads in your hands:
+If you felt that "dead air" between intent and motion, that's the whole problem. Here's a rough mapping from RTT to how it reads in your hands:
 
 | Latency | Experience |
 |---------|------------|
@@ -40,7 +45,7 @@ If you felt that “dead air” between intent and motion, that’s the whole pr
 | 200ms | Requires aggressive techniques; without them, feels like 200ms delay — unplayable |
 | 300ms | Noticeable lag |
 
-This is the whole game: make movement feel immediate without clients disagreeing about what’s true.
+This is the whole game: make movement feel immediate without clients disagreeing about what's true.
 
 <AccordionSection title="The history of multiplayer networking" value="content">
 
@@ -71,7 +76,7 @@ Fighting games pioneered rollback netcode (predicting inputs rather than waiting
 <Anchor id="understanding-the-options" />
 ## Understanding the Options
 
-There are three common shapes for multiplayer networking. Each makes different tradeoffs. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
+There are three common shapes for multiplayer networking. Each makes different tradeoffs around where **authority** lives and what breaks first. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
 
 ### Option 1: Peer-to-Peer (P2P)
 
@@ -87,7 +92,7 @@ Player C ←→ Player D
 | Pros | Cons |
 |------|------|
 | No server costs | N² connections (scales poorly) |
-| Lower latency for nearby players | No authoritative state (who's right when players disagree?) |
+| Lower latency for nearby players | No authority (who resolves conflicts?) |
 | Works offline/LAN | Cheating is trivial (your machine decides what's true) |
 | | NAT traversal is painful |
 
@@ -133,32 +138,32 @@ Player A → Server ← Player B
 
 | Option | Who is the authority? | What you pay | What breaks first |
 |--------|------------------------|--------------|-------------------|
-| P2P | Nobody (state is negotiated) | No servers to run (but networking complexity) | Clients disagree about what’s true |
-| Host-auth (listen server) | The host | Host is a single point of failure | Host disconnects or can’t keep up |
+| P2P | Nobody (state is negotiated) | No servers to run (but networking complexity) | Clients disagree about what's true |
+| Host-auth (listen server) | The host | Host is a single point of failure | Host disconnects or can't keep up |
 | Dedicated server | A server you run | Infra + ops cost | Shipping/operating servers becomes the work |
 
-Echelon has heat systems, AI guards, and objectives — shared systems where everyone needs to agree on what’s true. If one player sees 80% heat and another sees 50%, the game breaks.
+Echelon has heat systems, AI guards, and objectives — shared systems where everyone needs to agree on what's true. If one player sees 80% heat and another sees 50%, the game breaks.
 
-But this is co-op. We don’t need competitive-grade fairness guarantees. We need one authority that keeps the session consistent, and movement that feels immediate. <PerplexityLink query="why host auth is fine for coop and why you should switch to dedicated for pvp" />
+**Constraints:** This is co-op, not competitive. We don't need competitive-grade fairness guarantees. We need one **authority** that keeps the session consistent, and movement that feels immediate. <PerplexityLink query="why host auth is fine for coop and why you should switch to dedicated for pvp" />
 
-**For Echelon, host-authoritative is the right default.** It gives us one source of truth without standing up dedicated infrastructure. The tradeoff is that we accept a single point of failure: the host’s internet/CPU affects everyone, and if they leave the session ends. Luckily, there are common techniques like host migration to mitigate this. <PerplexityLink query="host migration listen server co-op games how it works" />
+**Failure mode:** Divergent shared state breaks co-op trust. If clients disagree about objectives or heat levels, coordination fails.
+
+**For Echelon, host-authoritative is the right default.** It gives us one source of truth without standing up dedicated infrastructure. The tradeoff is that we accept a single point of failure: the host's internet/CPU affects everyone, and if they leave the session ends. Host migration can mitigate this. <PerplexityLink query="host migration listen server co-op games how it works" />
+
+**Out of scope (for now):** Dedicated infrastructure, competitive anti-cheat, matchmaking at scale.
 
 <Anchor id="the-key-concepts" />
-## The Key Concepts
+## Making Host-Auth Feel Good
 
-Now that we've chosen host-authoritative, everything else is three techniques applied in the right places.
+We've chosen host-authoritative. Now we need three techniques to make it feel responsive: splitting authority, predicting your own movement, and interpolating everyone else.
 
-### Concept 1: Authority
+### Technique 1: Authority Split
 
-**Authority** answers: who is the source of truth for this piece of state? <PerplexityLink query="server authority vs client authority multiplayer games" />
+The host owns critical game state — health, inventory, objectives, AI positions. If a client says "I completed the objective," the host ignores it. The host decides what's true. <PerplexityLink query="server authority vs client authority multiplayer games" />
 
-In host-authoritative, the host's machine owns critical game state — health, inventory, objectives, AI positions. If a client says "I completed the objective," the host ignores it. The host decides what's true.
+But if the host owns *everything*, movement feels laggy for remote players. So we split: clients predict some things locally (their own movement, visual effects), while the host remains authoritative and can correct.
 
-"Authoritative" means one machine resolves conflicts — it doesn't have to be a cloud server. For co-op, the host's machine is sufficient.
-
-But if the host owns *everything*, movement feels laggy for remote players. So we let clients predict some things locally — their own movement, visual effects. The host remains authoritative and can correct, but the client doesn't wait.
-
-This split is the foundation: **host authoritative for critical state, client predictive for responsiveness.**
+**The boundary:** Host-authoritative for critical state (objectives, heat, AI), client-predictive for responsiveness (your movement, visual feedback). The host can always override.
 
 <AccordionSection title="Why never trust the client" value="trust">
 
@@ -177,11 +182,11 @@ The client can show progress UI locally, but the host decides when it's done.
 
 </AccordionSection>
 
-### Concept 2: Client-Side Prediction
+### Technique 2: Client-Side Prediction
 
-Remember the paradox: wait for host confirmation, and movement feels laggy. Show movement immediately, and we might be wrong. **Prediction** solves this. <PerplexityLink query="client side prediction multiplayer games how it works" />
+**Prediction** solves the responsiveness problem: press forward → you move immediately → host confirms later. The client doesn't wait. <PerplexityLink query="client side prediction multiplayer games how it works" />
 
-Press forward → you move immediately → host confirms later. The client doesn't wait. If the host says "actually, you collided with something," the client corrects smoothly — sliding to the correct position rather than snapping (snapping causes visible jitter).
+If the host says "actually, you collided with something," the client corrects smoothly — sliding to the correct position rather than snapping (snapping causes visible jitter).
 
 This is why movement can feel instant even at 150ms latency. The client predicts, the host confirms, corrections happen smoothly.
 
@@ -206,11 +211,11 @@ This is why movement can feel instant even at 150ms latency. The client predicts
 
 </AccordionSection>
 
-### Concept 3: Interpolation
+### Technique 3: Interpolation
 
-Prediction works for your own movement — but what about other players? You can't predict them. You don't know what they'll do. <PerplexityLink query="interpolation vs extrapolation multiplayer games networking" />
+**Prediction** works for your own movement — but you can't predict other players. You don't know what they'll do. <PerplexityLink query="interpolation vs extrapolation multiplayer games networking" />
 
-You also can't update their position every frame (60 times per second) — that's too much bandwidth. Instead, the host sends "snapshots" of game state periodically, maybe 20-30 times per second. Between snapshots, clients **interpolate** — smoothly blending between the last known positions.
+You also can't update their position every frame (60 times per second) — that's too much bandwidth. Instead, the host sends snapshots periodically, maybe 20-30 times per second. Between snapshots, clients **interpolate** — smoothly blending between the last known positions.
 
 ```
 Host sends:  [t=0, x=0] ........ [t=100ms, x=10] ........ [t=200ms, x=20]
@@ -219,7 +224,7 @@ Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
 
 The client fills in the gaps. Without interpolation, remote players teleport every 50ms. With interpolation, they move smoothly.
 
-The key insight: **you predict yourself, you interpolate everyone else.** Your character feels instant. Teammates appear smooth but slightly delayed.
+**The pattern:** You predict yourself, you interpolate everyone else. Your character feels instant. Teammates appear smooth but slightly delayed.
 
 **See the difference** — watch an NPC move on the server (left) vs how a remote client renders it (right). Toggle between snapping and interpolation, adjust update frequency and latency. Without interpolation, movement looks choppy. With interpolation, it's smooth.
 
@@ -240,9 +245,9 @@ For player movement, clients predict their own movement but interpolate teammate
 ---
 ## Conclusion
 
-We’ve named the hard parts: latency, a single authority, and the two tricks that keep co-op feeling good (predict yourself, interpolate everyone else).
+We've named the hard parts: latency, a single authority, and the techniques that keep co-op feeling good (predict yourself, interpolate everyone else).
 
-Now that we understand the tradeoffs, we can move on to building it.
+Now that we understand the tradeoffs, we can build it.
 
 ## Resources
 
