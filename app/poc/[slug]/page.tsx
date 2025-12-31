@@ -55,7 +55,7 @@ export default async function POC({
           {post.metadata.description}
         </p>
       </div>
-      <article className="prose">
+      <article className="prose prose-sm max-w-none">
         <CustomMDX source={post.content} />
       </article>
     </section>
