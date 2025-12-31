@@ -1,0 +1,6 @@
+{
+  "name": "echelon-multiplayer",
+  "compatibilityDate": "2025-12-31",
+  "main": "party/main.ts"
+}
+
