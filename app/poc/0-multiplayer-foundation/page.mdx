@@ -24,9 +24,9 @@ We'll explore multiplayer networking fundamentals — why latency matters, how c
 - Stack choices and why they fit Echelon
 - Step-by-step implementation with code walkthroughs
 
-**Want to skip straight to building?** **Go ahead** → [Step-by-Step Implementation](#step-by-step-implementation).
+**Want to skip the theory?** **Go ahead** → [Implementation](#implementation).
 
-<a id="why-multiplayer-is-hard"></a>
+<Anchor id="why-multiplayer-is-hard" />
 ## Why Multiplayer is Hard
 
 ### The Fundamental Problem: Latency
@@ -77,7 +77,7 @@ Fighting games pioneered rollback netcode (predicting inputs rather than waiting
 
 </AccordionSection>
 
-<a id="understanding-the-options"></a>
+<Anchor id="understanding-the-options" />
 ## Understanding the Options
 
 There are three fundamental approaches to multiplayer networking. Each makes different tradeoffs between complexity, consistency, and responsiveness. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
@@ -157,7 +157,7 @@ P2P won't work — no authoritative state means players can disagree, and cheati
 
 **That leaves client-server.** Higher complexity, but we get equal fairness, server validation, and clean reconnection.
 
-<a id="the-key-concepts"></a>
+<Anchor id="the-key-concepts" />
 ## The Key Concepts
 
 Now that we've chosen client-server, there are a few core concepts that make it work — and that will guide every networking decision we make.
@@ -238,6 +238,13 @@ For player movement, clients predict their own movement but interpolate teammate
 
 </AccordionSection>
 
+---
+
+<Anchor id="implementation" />
+
+# Implementation
+
+With the architecture and concepts covered, let's look at what we're building and the tools we'll use.
 ## Our Stack
 
 We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 3D rendering, with a WebSocket-based networking layer. <PerplexityLink query="pmndrs poimandres react three fiber ecosystem" />
@@ -311,10 +318,10 @@ Movement sync is the canary in the coal mine. If we can't make two players see e
 | Latency tolerance | < 150ms feels good | Artificial latency testing |
 | Reconnection | Works within 10s | Disconnect WiFi, reconnect, verify state |
 
-<a id="step-by-step-implementation"></a>
+<Anchor id="step-by-step-implementation" />
 ## Step-by-Step Implementation
 
-> **Building without context?** If you skipped ahead, understand [why multiplayer is hard](#why-multiplayer-is-hard), [the architectural options](#understanding-the-options), and [core concepts](#the-key-concepts) before diving in. You can always circle back.
+Now let's build it.
 
 ### Step 1: Set Up PartyKit Server
 
