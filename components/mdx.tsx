@@ -8,6 +8,7 @@ import { AccordionSection } from '@/components/mdx/accordion-section'
 import { Alert } from '@/components/mdx/alert'
 import { Anchor } from '@/components/mdx/anchor'
 import { PerplexityLink } from '@/components/mdx/perplexity-link'
+import { LatencyDemo } from '@/components/demos/latency-demo'
 import type { ComponentProps } from 'react'
 
 function CustomLink(props: ComponentProps<'a'>) {
@@ -125,6 +126,7 @@ let components = {
   Alert,
   Anchor,
   PerplexityLink,
+  LatencyDemo,
 }
 
 export function CustomMDX(props: ComponentProps<typeof MDXRemote>) {
