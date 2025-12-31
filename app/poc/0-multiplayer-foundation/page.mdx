@@ -890,21 +890,22 @@ We'll add a debug overlay showing these metrics in real-time, log aggregated dat
 
 What we deferred and why:
 
-- **Delta compression vs full snapshots:** Full snapshots work for 2-4 players. Delta compression becomes necessary at scale. Deferred until we validate scale requirements. <PerplexityLink query="delta compression vs full snapshots game networking" />
-- **Interpolation buffer:** We lerp directly to latest position. A proper buffer would smooth network jitter better. Deferred because direct lerp works for this POC's scope.
-- **Extrapolation:** We don't predict where remote players are going. Extrapolation would reduce perceived latency but adds complexity. Deferred until we measure actual latency issues. <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
-- **Connection quality visualization:** No UI for network metrics yet. Debug overlay would help diagnose issues. Deferred until we encounter connection problems.
-- **Input-based prediction:** We send transforms, not inputs. True prediction with reconciliation comes in later POCs. This POC validates connectivity and interpolation.
+- **Delta compression:** Sending only what changed cuts bandwidth dramatically at scale. We send full snapshots every time — works for 2-4 players, won't scale beyond that. <PerplexityLink query="delta compression vs full snapshots game networking" />
+- **Interpolation buffer:** Buffering 2-3 snapshots smooths network jitter so remote players don't stutter. We lerp directly to the latest position — simpler, but more sensitive to jitter. <PerplexityLink query="snapshot interpolation buffer multiplayer games" />
+- **Extrapolation:** Predicting where remote players are heading hides latency when packets arrive late. We don't extrapolate, so high latency or packet loss causes visible hitches. <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
+- **Network diagnostics:** RTT, packet loss, tick rate — essential for debugging. We have no overlay yet, so diagnosing network issues means reading logs. <PerplexityLink query="network debug overlay multiplayer games" />
+- **Input-based prediction:** Sending inputs (not positions) lets the server simulate authoritatively — prevents cheating, enables correction. We send positions directly, which is faster to build but not secure. <PerplexityLink query="client side prediction server reconciliation multiplayer" />
 
 ## What's Next
 
-With the foundation validated:
+This POC is complete. The foundation works — two players move smoothly in a shared space.
 
-1. **POC 1: Destruction + Multiplayer Sync** — Add physics and test destruction sync. Can we sync physics events reliably at 20Hz?
-2. **Refine interpolation** — Add interpolation buffer if network jitter becomes visible
-3. **Add metrics overlay** — Visualize RTT, jitter, update rate for debugging
+Up next, we use this foundation to answer the next question: **[POC 1: Destruction + Multiplayer Sync](/poc/1-destruction-multiplayer)** — can we sync physics events reliably at 20Hz?
 
-The foundation carries through the entire project. Movement sync works. Now we build on it.
+**Stretch goals** (if you want to push this POC further):
+- Add an interpolation buffer to smooth network jitter
+- Build a debug overlay showing RTT, jitter, and update rate
+- Test with artificial latency (Chrome DevTools throttling) to find breaking points
 
 ## Resources
 
