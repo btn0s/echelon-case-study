@@ -7,22 +7,9 @@ export const metadata = {
 
 ## The Problem We're Solving
 
-Multiplayer networking is the foundation everything else depends on. Before destructible walls, heat systems, or Super encounters, we need two players in the same world, moving smoothly.
+Before destructible walls, heat systems, or Super encounters, we need the boring thing: two players in the same world, moving smoothly.
 
-The core challenge: when you press a key, that input travels to a server and back. Even at light speed, this takes time — typically 20-150 milliseconds depending on distance. Wait for server confirmation, and movement feels sluggish. Show movement immediately, and we might be wrong about where you are. Every multiplayer game solves this tension between responsiveness and accuracy.
-
-This POC explores how to build reliable multiplayer sync for cooperative gameplay — the architectural choices, core concepts, and implementation patterns that make two players moving smoothly in the same world possible.
-
-## How to Use This Guide
-
-We'll explore multiplayer networking fundamentals — why latency matters, how client-server architecture works, the concepts that make responsive multiplayer possible. This context explains *why* we make each implementation choice.
-
-**What's ahead:**
-- Why multiplayer networking is hard (latency, authority, consistency)
-- Three architectural approaches and their tradeoffs  
-- Core concepts: authority, prediction, interpolation
-- Stack choices and why they fit Echelon
-- Step-by-step implementation with code walkthroughs
+The core problem is latency. Your input has to go to a server and back — typically 20-150ms depending on distance. If you wait for confirmation, movement feels sluggish. If you move immediately, you might be wrong. This POC builds the smallest system that resolves that tension well enough to build on.
 
 **Want to skip the theory?** **Go ahead** → [Implementation](#implementation).
 
@@ -31,7 +18,7 @@ We'll explore multiplayer networking fundamentals — why latency matters, how c
 
 ### The Fundamental Problem: Latency
 
-Press "move forward" on your keyboard. That input travels through wires to a server. The server processes it, sends a response back. Even at light speed, this round trip takes time — typically 20-150 milliseconds depending on distance. This delay is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
+Press "move forward" on your keyboard. That input travels through wires to a server and back. That round trip is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
 
 For single-player, this is irrelevant. For multiplayer, it creates a paradox:
 
@@ -39,9 +26,7 @@ For single-player, this is irrelevant. For multiplayer, it creates a paradox:
 - Show movement immediately, and you might be wrong about where you are
 - Two players interact with the same object — who wins?
 
-**What this feels like:**
-
-Latency is one of those things you can understand intellectually and still underestimate. **Try it for yourself** — click the demo, hold WASD, and flip between 0ms, 50ms, 100ms, 150ms, 200ms.
+**Try it for yourself** — click the demo, hold WASD, and flip between 0ms, 50ms, 100ms, 150ms, 200ms.
 
 <LatencyDemo />
 
@@ -55,7 +40,7 @@ If you felt that “dead air” between intent and motion, that’s the whole pr
 | 200ms | Requires aggressive techniques; without them, feels like 200ms delay — unplayable |
 | 300ms | Noticeable lag |
 
-Every multiplayer game solves this problem. The solutions are well-documented. Choosing the right approach requires understanding the tradeoffs.
+This is the whole game: make movement feel immediate without letting the world fork.
 
 <AccordionSection title="The history of multiplayer networking" value="content">
 
@@ -86,7 +71,7 @@ Fighting games pioneered rollback netcode (predicting inputs rather than waiting
 <Anchor id="understanding-the-options" />
 ## Understanding the Options
 
-There are three fundamental approaches to multiplayer networking. Each makes different tradeoffs between complexity, consistency, and responsiveness. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
+There are three common shapes for multiplayer networking. Each makes different tradeoffs. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
 
 ### Option 1: Peer-to-Peer (P2P)
 
@@ -106,8 +91,6 @@ Player C ←→ Player D
 | Works offline/LAN | Cheating is trivial (your machine decides what's true) |
 | | NAT traversal is painful <PerplexityLink query="NAT traversal hole punching multiplayer games" /> |
 
-**Used by:** Older fighting games, some indie games, local multiplayer
-
 ### Option 2: Host-Authoritative (Listen Server)
 
 One player's machine acts as both player and server. Other players connect to them. <PerplexityLink query="listen server host migration multiplayer games" />
@@ -124,8 +107,6 @@ Player B → Host (Player A) ← Player C
 | No dedicated server needed | Host has zero latency (unfair advantage in competitive games) |
 | Simpler than full client-server | If host disconnects, game ends (or requires migration) |
 | Works for small player counts | Host's internet quality affects everyone |
-
-**Used by:** Payday 2, Deep Rock Galactic, many co-op games
 
 ### Option 3: Client-Server (Dedicated Server)
 
@@ -145,11 +126,9 @@ Player A → Server ← Player B
 | Server can persist state, handle reconnects | Server costs money |
 | Professional hosting options (Hathora, etc.) | |
 
-**Used by:** Counter-Strike, Fortnite, most competitive games
-
 ### Which approach for Echelon?
 
-Echelon has heat systems, AI guards, and objectives — all need to stay in sync across every connected player. If one player sees 80% heat and another sees 50%, the game breaks.
+Echelon has heat systems, AI guards, and objectives. If one player sees 80% heat and another sees 50%, the game breaks.
 
 | Factor | P2P | Host-Auth | Client-Server |
 |--------|-----|-----------|---------------|
@@ -159,14 +138,12 @@ Echelon has heat systems, AI guards, and objectives — all need to stay in sync
 | Cost | Free | Free | Server costs |
 | Reconnection | Hard | Host migration | Clean reconnect |
 
-P2P won't work — no authoritative state means players can disagree, and cheating is trivial. Host-authoritative won't work either — the host has an unfair latency advantage, and if they disconnect, the game ends (or requires complex migration).
-
-**That leaves client-server.** Higher complexity, but we get equal fairness, server validation, and clean reconnection.
+P2P won't work (no authority, easy cheating). Host-authoritative won't work either (host advantage, messy disconnects). **That leaves client-server.**
 
 <Anchor id="the-key-concepts" />
 ## The Key Concepts
 
-Now that we've chosen client-server, there are a few core concepts that make it work — and that will guide every networking decision we make.
+Now that we've chosen client-server, everything else is three techniques applied in the right places.
 
 ### Concept 1: Authority
 
@@ -1217,7 +1194,7 @@ What’s still left rough:
 
 ## What Changed
 
-After building and testing this minimal multiplayer foundation, we discovered:
+After building and testing, we discovered:
 
 1. **Latency tolerance:** Below 100ms RTT feels instant. Above 200ms requires aggressive prediction. At 150ms, slight delay is acceptable.
 2. **Update frequency:** 20Hz is sufficient for movement sync. Higher frequencies (30-60Hz) improve smoothness but increase bandwidth. For this POC, 20Hz works.
@@ -1247,7 +1224,7 @@ interface NetworkMetrics {
 }
 ```
 
-We'll add a debug overlay showing these metrics in real-time, log aggregated data for analysis.
+Next: a debug overlay for these metrics, plus aggregated logs.
 
 ## What Remains Open
 
@@ -1261,7 +1238,7 @@ What we deferred and why:
 
 ## What's Next
 
-This POC is complete. The foundation works — two players move smoothly in a shared space.
+This POC is complete: two players move smoothly in a shared space.
 
 Up next, we use this foundation to answer the next question: **[POC 1: Destruction + Multiplayer Sync](/poc/1-destruction-multiplayer)** — can we sync physics events reliably at 20Hz?
 
