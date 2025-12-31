@@ -14,18 +14,42 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
     const card = cardRef.current;
     if (!card) return;
 
-    const handleBlur = (e: FocusEvent) => {
-      // Don't blur if focus is moving to a child element within the card
-      const relatedTarget = e.relatedTarget as Node | null;
-      if (relatedTarget && card.contains(relatedTarget)) {
-        return;
+    const setActive = (active: boolean) => {
+      if (active) {
+        card.dataset.active = "true";
+      } else {
+        delete card.dataset.active;
       }
     };
 
-    card.addEventListener("blur", handleBlur, true);
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+
+      // Click inside: activate.
+      if (card.contains(target)) {
+        setActive(true);
+        return;
+      }
+
+      // Click outside: deactivate.
+      setActive(false);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActive(false);
+        // Keep focus behavior simple: allow Escape to "drop control"
+        (document.activeElement as HTMLElement | null)?.blur?.();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      card.removeEventListener("blur", handleBlur, true);
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -48,7 +72,8 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
   return (
     <div
       ref={cardRef}
-      className="game-container my-8 rounded-lg border bg-card shadow-xs focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
+      data-game-container
+      className="game-container rounded-lg border bg-card shadow-xs focus:outline-none cursor-pointer overflow-hidden"
       tabIndex={0}
       onClick={handleClick}
     >

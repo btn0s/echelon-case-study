@@ -138,7 +138,7 @@
   opacity: 0%;
 }
 
-#main-content:has(.game-container:focus-within)::before {
+#main-content:has([data-game-container][data-active])::before {
   opacity: 100%;
 }
 

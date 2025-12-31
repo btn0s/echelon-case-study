@@ -71,19 +71,15 @@ export function LatencyDemo() {
     const resizeObserver = new ResizeObserver(updatePositionToCenter)
     resizeObserver.observe(container)
 
-    const isDemoFocused = () => {
-      const activeElement = document.activeElement
-      const demoContainer = demo.closest(".rounded-lg.border.bg-card")
-      return (
-        demoContainer === activeElement ||
-        (demoContainer && demoContainer.contains(activeElement))
-      )
+    const isDemoActive = () => {
+      const root = demo.closest("[data-game-container]") as HTMLElement | null
+      return root?.dataset.active === "true"
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isWASDKey(e.key)) return
 
-      if (!isDemoFocused()) return
+      if (!isDemoActive()) return
 
       e.preventDefault()
 
@@ -94,6 +90,8 @@ export function LatencyDemo() {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (!isWASDKey(e.key)) return
+
+      if (!isDemoActive()) return
 
       const now = performance.now()
       inputNowRef.current = applyKey(inputNowRef.current, e.key, false)
@@ -121,7 +119,7 @@ export function LatencyDemo() {
 
     // Smooth animation loop using RAF. Always render smoothly; latency is applied to *input sampling*.
     const animate = (rafNow: number) => {
-      if (!isDemoFocused()) {
+      if (!isDemoActive()) {
         lastFrameTimeRef.current = rafNow
         animationFrameRef.current = requestAnimationFrame(animate)
         return
