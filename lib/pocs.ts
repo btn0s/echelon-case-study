@@ -11,6 +11,10 @@ export interface POCData {
   questionIds?: string[];
   focus: string;
   gddMapping: string[];
+  parts?: Array<{
+    title: string;
+    href: string;
+  }>;
 }
 
 export const POCS: POCData[] = [
@@ -18,7 +22,7 @@ export const POCS: POCData[] = [
     id: 0,
     slug: "0-multiplayer-foundation",
     title: "Multiplayer Foundation",
-    status: "pending",
+    status: "in-progress",
     objective:
       "Establish multiplayer networking architecture. Validate reliable player movement synchronization, connection handling, and foundational multiplayer infrastructure that all other systems depend on.",
     description:
@@ -29,6 +33,16 @@ export const POCS: POCData[] = [
     gddMapping: [
       "Core Fantasy: Cooperation pillar",
       "Demo Scope: 2 players cooperative (line 168)",
+    ],
+    parts: [
+      {
+        title: "Multiplayer Theory",
+        href: "/poc/0-multiplayer-foundation-part-1",
+      },
+      {
+        title: "Building a host-auth POC with React",
+        href: "/poc/0-multiplayer-foundation-part-2",
+      },
     ],
   },
   {

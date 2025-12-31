@@ -71,36 +71,55 @@ export default function HomePage() {
 
           <section>
             <h2>The Prototypes</h2>
-            <div className="flex flex-col gap-2 not-prose mt-6">
-              {POCS.map((poc, index) => (
-                <Link
-                  key={poc.id}
-                  href={`/poc/${poc.slug}`}
-                  className="group block pb-3 hover:border-primary transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    {poc.keyQuestion && (
-                      <p className="text-sm font-medium group-hover:text-primary transition-colors">
-                        {String(index + 1).padStart(2, "0")}. {poc.keyQuestion}
-                      </p>
-                    )}
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      {poc.title}
-                      <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-                    </span>
+            <div className="flex flex-col gap-6 not-prose mt-6">
+              {POCS.map((poc, index) => {
+                const parts = poc.parts ?? [];
+                const isComingSoon = parts.length === 0 && poc.status === "pending";
+                const fallbackPart = { title: poc.title, href: `/poc/${poc.slug}` };
+
+                return (
+                  <div key={poc.id} className="border-b pb-4">
+                    <p className="text-sm font-medium">
+                      {String(index + 1).padStart(2, "0")}. {poc.keyQuestion}
+                    </p>
+                    <div className="mt-2 flex flex-col gap-1">
+                      {isComingSoon ? (
+                        <div className="inline-flex items-center justify-between gap-3 rounded-md px-2 py-1 text-sm text-muted-foreground opacity-70">
+                          <span>Coming soon</span>
+                        </div>
+                      ) : (
+                        (parts.length ? parts : [fallbackPart]).map(
+                          (part, partIndex) => (
+                            <Link
+                              key={part.href}
+                              href={part.href}
+                              className="group inline-flex items-center justify-between gap-3 rounded-md px-2 py-1 text-sm text-muted-foreground hover:text-primary hover:bg-muted/50 transition-colors"
+                            >
+                              <span>
+                                Part {partIndex + 1} — {part.title}
+                              </span>
+                              <ArrowUpRight className="size-4 shrink-0" />
+                            </Link>
+                          )
+                        )
+                      )}
+                    </div>
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           </section>
 
           <nav className="not-prose flex items-center justify-between border-t pt-8 mt-12">
             <div />
             <Link
-              href={`/poc/${POCS[0]?.slug || ""}`}
+              href={
+                POCS[0]?.parts?.[0]?.href ??
+                `/poc/${POCS[0]?.slug || ""}`
+              }
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <span>{POCS[0]?.title}</span>
+              <span>Start reading</span>
               <ArrowRight className="w-4 h-4" />
             </Link>
           </nav>
