@@ -6,89 +6,53 @@ alwaysApply: true
 
 ## Purpose
 
-The `/app/poc/` pages are **educational case studies** that serve as both a learning tool during development and permanent documentation for future reference.
+The `/app/poc/` pages teach through story. They answer: "If someone wants to understand how and why we built X, can they learn it deeply from this page?"
 
-They answer: "If someone (including future me) wants to understand how and why we built X, can they learn it deeply from this page?"
+These are case studies, not documentation. The reader should understand the problem, the constraints, the tradeoffs, and why we chose what we chose.
 
-## Philosophy: Narrative Over Template
+## The Point
 
-Each POC page should tell a **story**, not fill a template. Walk the reader through:
+Each POC tells a story about a decision. Not every decision needs the same structure. A networking POC might focus on prediction vs interpolation. A UI POC might need visual examples. Let the content guide the structure.
 
-1. **The problem** — Why does this matter? What breaks if we get it wrong?
-2. **Historical context** — How has the industry solved this? What can we learn from games like Payday, Left 4 Dead, etc.?
-3. **The options** — What approaches exist? What are the tradeoffs?
-4. **Our thinking** — Why are we choosing this approach for Echelon specifically?
-5. **The implementation** — Step-by-step, what do we build? How does the code work?
-6. **What we learned** — Results, decisions, lessons for future POCs
+What matters:
 
-Don't force every POC into identical sections. Let the content dictate the structure. A networking POC needs deep explanation of prediction vs interpolation. A UI POC might need more visual examples. Be intentional.
-
-## Content Requirements
-
-Every POC should include, where relevant:
-
-- **The "why"** — Why this matters for Echelon, consequences of getting it wrong
-- **History and context** — How real games solved this (Payday 2, L4D2, Deep Rock, etc.)
-- **Concept explanations** — Teach the reader, don't assume knowledge
-- **Tradeoff analysis** — Options considered, pros/cons, why we chose what we chose
-- **Stack-specific guidance** — R3F, pmndrs ecosystem, relevant libraries
-- **Real resources** — Links to Gaffer on Games, Wawa Sensei, GDC talks, GitHub repos
-- **Code walkthroughs** — Annotated snippets explaining the "why" not just "what"
-- **Pitfalls and warnings** — Common mistakes, "things I wish I knew"
-- **Open questions** — What we'll discover during implementation
-
-## Our Stack
-
-Keep these in mind when writing implementation guidance:
-
-- **React Three Fiber (R3F)** — 3D rendering
-- **Zustand** — Local state management (client-side only)
-- **@react-three/rapier** — Physics
-- **PartyKit / Socket.io / Colyseus** — Networking options
-- **pmndrs ecosystem** — drei, postprocessing, etc.
-
-Find resources from the community:
-- [Wawa Sensei tutorials](https://wawasensei.dev/)
-- [Gaffer on Games](https://gafferongames.com/)
-- [pmndrs GitHub](https://github.com/pmndrs)
-- Relevant GDC talks
+- **Why this matters** — What breaks if we get it wrong? Name the failure mode.
+- **The constraints** — Time, performance, complexity, team size. What limited our options?
+- **The tradeoffs** — What alternatives did we reject? Why?
+- **The implementation** — How does it work? Show the code, explain the "why" not just the "what".
+- **What we learned** — What would we do differently? What remains open?
 
 ## Writing Style
 
-- **Teach, don't document** — Write as if explaining to a smart developer new to game dev
-- **Tell the story** — "We tried X, but discovered Y, so we chose Z"
-- **Be specific** — Name specific games, link specific articles, cite specific patterns
-- **Show the thinking** — Why this approach? What alternatives did we reject?
-- **Use expandable sections** — `<LearnMore>`, `<Concept>`, `<IndustryExample>`, `<Tradeoffs>`, `<Pitfall>`, `<CodeWalkthrough>` for depth without clutter
+Write as if explaining to a capable peer new to game dev. Teach, don't document.
 
-## Available MDX Components
+- Name specific games, link specific articles, cite specific patterns
+- Show the thinking: "We tried X, but discovered Y, so we chose Z"
+- State what was rejected or left rough
+- End with what changed or what remains open
 
-Use these to layer depth — readers can skim the main content or expand to learn more:
+## Stack Context
 
-- `<LearnMore title="...">` — Generic expandable for additional context
-- `<Concept title="...">` — Theory explanations
-- `<IndustryExample game="..." relevance="...">` — How real games solve this
-- `<Tradeoffs title="...">` — Comparison tables and analysis
-- `<Pitfall title="..." severity="warning|critical">` — Warnings and gotchas
-- `<CodeWalkthrough title="...">` — Annotated code with explanation
+When writing implementation guidance, prefer popular, well-maintained libraries that solve the problem well. Research what's widely used in 2025, check GitHub stars, community activity, and documentation quality. Name specific libraries when they're relevant to the decision, but don't prescribe a fixed stack.
 
-## Perplexity Deep Dive Links
+Reference community resources when they're useful:
+- Tutorials and guides from active maintainers
+- Foundational articles (Gaffer on Games, etc.)
+- GDC talks and conference presentations
+- Well-documented open source projects
 
-Use the `<PerplexityLink>` component to add "dive deeper" links for any concept worth exploring:
+## MDX Components
+
+Use these components to layer depth without clutter:
+
+- `<AccordionSection title="...">` — Expandable sections for additional context, historical background, detailed explanations
+- `<Alert title="...">` — Important warnings, notes, or critical information
+- `<PerplexityLink query="...">` — Deep dive links for concepts worth exploring further
+
+## Perplexity Links
+
+Add `<PerplexityLink>` after introducing concepts worth exploring:
 
 ```mdx
 <PerplexityLink query="client side prediction multiplayer games how it works" />
 ```
-
-Add these inline after introducing a concept. Use specific, targeted queries:
-
-- Good: `client side prediction multiplayer games how it works`
-- Bad: `networking` (too vague)
-
-Optional: customize the link text with children:
-
-```mdx
-<PerplexityLink query="GGPO rollback netcode">learn about rollback</PerplexityLink>
-```
-
-This lets readers instantly research any topic without leaving the flow.

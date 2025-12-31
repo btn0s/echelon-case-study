@@ -2,10 +2,9 @@ import { ExternalLink } from "lucide-react";
 
 interface PerplexityLinkProps {
   query: string;
-  children?: React.ReactNode;
 }
 
-export function PerplexityLink({ query, children }: PerplexityLinkProps) {
+export function PerplexityLink({ query }: PerplexityLinkProps) {
   const encodedQuery = encodeURIComponent(query);
   const url = `https://www.perplexity.ai/search?q=${encodedQuery}`;
 
@@ -16,7 +15,7 @@ export function PerplexityLink({ query, children }: PerplexityLinkProps) {
       rel="noopener noreferrer"
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
     >
-      {children ?? "Learn more on Perplexity"}
+      Learn more
       <ExternalLink className="size-3" />
     </a>
   );
