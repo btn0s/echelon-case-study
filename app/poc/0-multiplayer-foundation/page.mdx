@@ -476,6 +476,44 @@ In later POCs, we'll send **inputs + sequence numbers** and reconcile client pre
 
 </Alert>
 
+#### Running the Server
+
+**Development (local):**
+
+```bash
+# Install PartyKit
+pnpm add partykit partysocket
+
+# Create partykit.json in project root
+echo '{"name": "echelon-multiplayer", "main": "party/main.ts"}' > partykit.json
+
+# Run locally (starts on localhost:1999)
+npx partykit dev
+```
+
+Your client connects to `localhost:1999` during development. Set the host in your environment:
+
+```bash
+# .env.local
+NEXT_PUBLIC_PARTYKIT_HOST=localhost:1999
+```
+
+**Deployment (production):**
+
+```bash
+# Deploy to Cloudflare (one command)
+npx partykit deploy
+```
+
+PartyKit outputs your production URL (e.g., `echelon-multiplayer.yourname.partykit.dev`). Update your production environment:
+
+```bash
+# .env.production
+NEXT_PUBLIC_PARTYKIT_HOST=echelon-multiplayer.yourname.partykit.dev
+```
+
+Your Next.js app deploys to Vercel as usual. The PartyKit server runs separately on Cloudflare — they communicate over WebSocket.
+
 ### Step 2: Client Connection Hook
 
 A React hook to manage the WebSocket connection and state. <PerplexityLink query="react websocket hook pattern real time state" />
