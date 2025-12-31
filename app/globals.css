@@ -240,18 +240,55 @@
   @apply p-0 bg-transparent;
   border: initial;
   line-height: 1.5;
-  color: var(--foreground);
   font-family: var(--font-mono);
   white-space: pre;
+  /* Don't set color here - let spans handle their own colors */
 }
 
 .prose code span {
   @apply font-medium;
 }
 
-/* Ensure sugar-high spans inherit proper colors */
-.prose pre code span {
-  color: inherit;
+/* Default color for code spans without syntax highlighting */
+.prose pre code span:not([class*="sh__"]) {
+  color: var(--foreground);
+}
+
+/* Apply syntax highlighting colors to sugar-high classes with !important to ensure they override */
+.prose pre code .sh__class {
+  color: var(--sh-class) !important;
+}
+
+.prose pre code .sh__identifier {
+  color: var(--sh-identifier) !important;
+}
+
+.prose pre code .sh__sign {
+  color: var(--sh-sign) !important;
+}
+
+.prose pre code .sh__string {
+  color: var(--sh-string) !important;
+}
+
+.prose pre code .sh__keyword {
+  color: var(--sh-keyword) !important;
+}
+
+.prose pre code .sh__comment {
+  color: var(--sh-comment) !important;
+}
+
+.prose pre code .sh__jsxliterals {
+  color: var(--sh-jsxliterals) !important;
+}
+
+.prose pre code .sh__property {
+  color: var(--sh-property) !important;
+}
+
+.prose pre code .sh__entity {
+  color: var(--sh-entity) !important;
 }
 
 /* ASCII art and plain text code blocks - ensure visibility */

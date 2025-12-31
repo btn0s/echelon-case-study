@@ -41,25 +41,39 @@ function Code({ children, className, ...props }: ComponentProps<'code'>) {
   const isBlock = className?.startsWith('language-')
   
   if (isBlock) {
-    // For code blocks with language, try to highlight
-    const code = String(children).replace(/\n$/, '') // Remove trailing newline
-    
+    // Extract plain text from children (handles both string and React elements)
+    // This ensures we always get plain text before highlighting, preventing hydration mismatches
+    const extractText = (node: React.ReactNode): string => {
+      if (typeof node === "string") return node;
+      if (typeof node === "number") return String(node);
+      if (Array.isArray(node)) return node.map(extractText).join("");
+
+      return "";
+    };
+
+    const codeText = extractText(children).replace(/\n$/, ""); // Remove trailing newline
+
     // Try to detect if it's plain text/ASCII art (no language specified or empty language)
-    const language = className?.replace('language-', '') ?? ''
-    if (!language || language === 'text' || language === 'plaintext') {
+    const language = className?.replace("language-", "") ?? "";
+    if (!language || language === "text" || language === "plaintext") {
       // Plain text/ASCII art - don't highlight, just render
-      return <code className={className} {...props}>{children}</code>
+      return (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
     }
-    
-    // For code blocks with actual language, highlight
-    const codeHTML = highlight(code)
+
+    // For code blocks with actual language, highlight with sugar-high
+    // This ensures consistent highlighting on both server and client
+    const codeHTML = highlight(codeText);
     return (
       <code
         className={className}
         dangerouslySetInnerHTML={{ __html: codeHTML }}
         {...props}
       />
-    )
+    );
   }
   
   // For inline code, just return as-is
