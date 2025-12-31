@@ -5,13 +5,13 @@ import { QUESTIONS } from "@/lib/caseStudy/questions";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Building a Co-op Heist Game by Designing the Post-Mortem First",
+  title: "Designing Echelon: A Co-op Heist Game Case Study",
   description:
-    "A case study in AI-assisted game development. Nine prototypes, one game: how we built Echelon by asking the right questions first.",
+    "How I designed a multiplayer co-op heist game with physics destruction, AI guards, and economic pressure. Nine prototypes, one game.",
   openGraph: {
     title: "Echelon Case Study",
     description:
-      "Building a co-op heist game by designing the post-mortem first. A case study in AI-assisted game development.",
+      "A case study in designing a multiplayer co-op heist game. How I solved physics sync, AI behavior, and cooperative objectives.",
   },
 };
 
@@ -25,31 +25,13 @@ export default function HomePage() {
           {/* Header */}
           <header>
             <h1 className="text-balance">
-              Building a co-op heist game by designing the post-mortem first
+              Designing Echelon: A co-op heist game case study
             </h1>
             <p className="text-lg text-muted-foreground">
-              A case study in AI-assisted game development
+              How I designed a multiplayer game with physics destruction, AI
+              guards, and economic pressure
             </p>
           </header>
-
-          <section>
-            <p>
-              A multiplayer co-op heist game is a tangle of interconnected
-              problems: physics destruction that syncs across clients, AI that
-              responds to noise, economic pressure, cooperative objectives. The
-              usual approach—build everything, hope it works—fails hard. It
-              fails harder with AI assistance, because effective AI
-              collaboration requires clear structure.
-            </p>
-            <p>
-              So we flipped the process. Instead of building first and
-              documenting later, we asked:{" "}
-              <strong>What would the ideal post-mortem look like?</strong> We
-              designed that structure first—{totalQuestions} critical questions,
-              nine discrete prototypes—and used it as our guide. This documents
-              what happened.
-            </p>
-          </section>
 
           <section>
             <h2>The Game</h2>
@@ -59,15 +41,19 @@ export default function HomePage() {
               highest bidder. Every job presents the same dilemma: go quiet and
               stay safe, or go loud and get rich. The walls aren&apos;t
               obstacles—they&apos;re shortcuts you can blow open, if you&apos;re
-              willing to pay the price. Make too much noise and a superpowered
-              enforcer crashes through to stop you.
+              willing to pay the price.
             </p>
             <p>
-              Every tool costs money you can&apos;t afford to lose. Every noise
-              draws attention you can&apos;t afford. Three failed missions and
-              you&apos;re fired—new operator, empty wallet, start over. It&apos;s
-              a game about desperate improvisation: the moment your careful plan
-              meets chaotic physics and you have to decide what to do next.
+              Make too much noise and a superpowered enforcer crashes through to
+              stop you. Every tool costs money you can&apos;t afford to lose.
+              Every noise draws attention you can&apos;t afford. Three failed
+              missions and you&apos;re fired—new operator, empty wallet, start
+              over.
+            </p>
+            <p>
+              It&apos;s a game about desperate improvisation: the moment your
+              careful plan meets chaotic physics and you have to decide what to
+              do next.
             </p>
             <div className="not-prose mt-4">
               <Link
@@ -80,53 +66,91 @@ export default function HomePage() {
           </section>
 
           <section>
-            <h2>The Approach</h2>
+            <h2>The Design Challenge</h2>
             <p>
-              Before writing code, we wrote the questions. {totalQuestions}{" "}
-              critical questions spanning core loops, design pillars, and system
-              interactions. Then we mapped them to prototypes. Each POC isolates
-              one risky assumption. Each has one job: prove that a specific
-              mechanic is solvable—and fun.
+              A multiplayer co-op heist game needs physics destruction that syncs
+              across clients, AI that responds to noise, economic pressure, and
+              cooperative objectives—all at once. Each system depends on the
+              others. Get one wrong, and the whole experience breaks down.
             </p>
-
-            <b>Problem &rarr; Options &rarr; Implementation &rarr; Results</b>
-
-            {/* <code className="bg-foreground text-background w-full h-24 flex items-center justify-center before:content-[''] after:content-['']">
-              Problem &rarr; Options &rarr; Implementation &rarr; Results
-            </code> */}
-
             <p>
-              This structure makes AI collaboration work. With explicit
-              questions and a consistent template, the AI has context. It knows
-              what we&apos;re trying to prove. Each POC stands alone. Together,
-              they show what we learned building Echelon.
+              My usual approach is to break problems down into small questions
+              with small answers. Each question becomes a prototype. Each
+              prototype proves one thing works—and works well.
+            </p>
+            <p>
+              Game design is a stress test of this process. Unlike linear UX
+              flows or common interface problems, systems interact. Physics
+              destruction affects heat. Heat affects AI behavior. AI behavior
+              affects economic pressure. Each system depends on the others.
+            </p>
+            <p>
+              I can prototype in isolation, but I need to know which isolated
+              prototypes will actually answer what I need to know about how these
+              systems interact. Which questions matter? Which prototypes will
+              reveal the right answers? I didn't want to waste time building the
+              wrong things.
             </p>
           </section>
 
           <section>
-            <h2>Nine Prototypes</h2>
+            <h2>How I Designed It</h2>
             <p>
-              Starting with multiplayer networking, then layering destruction,
-              heat, AI, objectives, economy, and boss encounters. The last POC
-              brings it all together.
+              When using AI, context management is critical. I decided to do an
+              experiment: do all the design work and research ahead of time.
+              Document it all as if this is the ideal case study and it's done
+              already. Then build prototypes to test it.
             </p>
+            <p>
+              This approach helps me learn about what I'm building and think
+              through things. While I'm writing, AI assists and helps me explore
+              ideas. Later, when I'm implementing, AI has the full context.
+              Effectively, I'm writing a tutorial for myself.
+            </p>
+            <p>
+              I wrote {totalQuestions} critical questions spanning core loops,
+              design pillars, and system interactions. I mapped them to
+              prototypes. Each POC follows the same structure:{" "}
+              <strong>
+                Problem &rarr; Options &rarr; Implementation &rarr; Results
+              </strong>
+              .
+            </p>
+            <p>
+              This consistency enabled AI collaboration. With explicit questions
+              and a clear template, the AI had context. It knew what I was trying
+              to prove. Each POC stands alone. Together, they show how I
+              designed Echelon.
+            </p>
+          </section>
+
+          <section>
+            <h2>Nine Design Prototypes</h2>
+            <p>
+              I built multiplayer networking first—the foundation everything
+              else depends on. Then I added destruction, heat, AI, objectives,
+              economy, and boss encounters, each building on what came before.
+              The final POC integrates them all to see how the systems work
+              together.
+            </p>
+            <p>Each prototype answers a design question.</p>
             <div className="flex flex-col gap-2 not-prose mt-6">
-              {POCS.map((poc) => (
+              {POCS.map((poc, index) => (
                 <Link
                   key={poc.id}
                   href={`/poc/${poc.slug}`}
                   className="group block pb-3 hover:border-primary transition-colors"
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-medium group-hover:text-primary transition-colors flex items-center gap-1 group-hover:underline">
+                    {poc.keyQuestion && (
+                      <p className="text-sm font-medium group-hover:text-primary transition-colors">
+                        {String(index + 1).padStart(2, "0")}. {poc.keyQuestion}
+                      </p>
+                    )}
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
                       {poc.title}
                       <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
                     </span>
-                    {poc.keyQuestion && (
-                      <p className="text-xs text-muted-foreground">
-                        {poc.keyQuestion}
-                      </p>
-                    )}
                   </div>
                 </Link>
               ))}
