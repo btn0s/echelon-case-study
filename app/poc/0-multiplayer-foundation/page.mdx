@@ -356,24 +356,6 @@ Not Socket.io. Not Colyseus. Not Hathora. PartyKit because it's fastest to valid
 
 Now let's build it.
 
-<Alert title="Runnable implementation (what this repo actually ships)">
-
-The code snippets below teach the ideas in small steps, but the runnable POC is the “final form”:
-
-- **Server** runs a fixed 20Hz tick via PartyKit **alarms** (`room.storage.setAlarm` + `onAlarm`) and broadcasts **snapshots**.
-- **Client → server** sends **inputs** (`{ type: \"input\", seq, dt, keys }`), not transforms.
-- **Client prediction** moves immediately.
-- **Server reconciliation** snaps to the authoritative snapshot, then replays un-acked inputs.
-- **Remote interpolation** uses a small snapshot buffer and renders ~100ms behind.
-
-Code pointers:
-- `party/main.ts`
-- `app/play/0-multiplayer-foundation/use-multiplayer.ts`
-- `app/play/0-multiplayer-foundation/local-player.tsx`
-- `app/play/0-multiplayer-foundation/remote-player.tsx`
-
-</Alert>
-
 ### Step 1: Set Up PartyKit Server
 
 PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. <PerplexityLink query="partykit cloudflare workers websocket server setup" />
@@ -393,26 +375,45 @@ The server is the authoritative source of truth. It maintains game state, valida
 
 **Why this message format:**
 - JSON over WebSocket is simple and debuggable. Binary protocols are faster but harder to debug.
-- Type-based routing (`data.type === "move"`) is explicit. We could use separate endpoints, but type-based routing keeps the server simple.
+- Type-based routing (`data.type === "input"`, `data.type === "snapshot"`) is explicit. We could use separate endpoints, but type-based routing keeps the server simple.
 
 **Durable Objects location note:** Each room is backed by a Durable Object instantiated in a single data center location. You can influence placement with `locationHint`, but objects don't auto-migrate. This works well for co-op games where players are in the same region. ([Cloudflare DO data location docs](https://developers.cloudflare.com/durable-objects/reference/data-location/))
 
-Create `party/main.ts` and start with the types and interfaces:
+Create `party/main.ts` and start with the types and interfaces. This matches the runnable POC exactly:
 
 ```typescript
 // party/main.ts
 import type { PartyKitServer, PartyConnection } from "partykit/server"
 
 type Vec3 = { x: number; y: number; z: number }
+type InputState = { w: boolean; a: boolean; s: boolean; d: boolean }
 
-interface Player {
+const DEFAULT_INPUT: InputState = { w: false, a: false, s: false, d: false }
+
+interface PlayerState {
   id: string
   position: Vec3
   rotation: number
+  lastProcessedInputSeq: number
+  currentInput: InputState
 }
 
 interface GameState {
-  players: Record<string, Player>
+  players: Record<string, PlayerState>
+  tick: number
+}
+
+type InputMessage = { type: "input"; seq: number; dt: number; keys: InputState }
+type SnapshotMessage = {
+  type: "snapshot"
+  serverTime: number
+  tick: number
+  players: Array<{
+    id: string
+    position: Vec3
+    rotation: number
+    lastProcessedInputSeq: number
+  }>
 }
 ```
 
@@ -423,13 +424,16 @@ export default {
   async onConnect(connection: PartyConnection, room) {
     // Load existing state or create new
     const state =
-      (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
+      (await room.storage.get<GameState>("state")) ??
+      ({ players: {}, tick: 0 } satisfies GameState)
     
     // Create new player at spawn point
-    const player: Player = {
+    const player: PlayerState = {
       id: connection.id,
       position: { x: 0, y: 0.5, z: 0 },
       rotation: 0,
+      lastProcessedInputSeq: 0,
+      currentInput: DEFAULT_INPUT,
     }
     state.players[connection.id] = player
     
@@ -437,13 +441,21 @@ export default {
     connection.send(JSON.stringify({
       type: "init",
       playerId: connection.id,
-      players: Object.values(state.players),
+      players: Object.values(state.players).map(p => ({
+        id: p.id,
+        position: p.position,
+        rotation: p.rotation,
+      })),
     }))
     
     // Tell everyone else about the new player
     room.broadcast(JSON.stringify({
       type: "player-joined",
-      player,
+      player: {
+        id: player.id,
+        position: player.position,
+        rotation: player.rotation,
+      },
     }), [connection.id]) // Exclude the new player from this broadcast
     
     await room.storage.put("state", state)
@@ -456,7 +468,8 @@ Add the `onMessage` handler for **input** updates:
   async onMessage(message: string, connection: PartyConnection, room) {
     const data = JSON.parse(message)
     const state =
-      (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
+      (await room.storage.get<GameState>("state")) ??
+      ({ players: {}, tick: 0 } satisfies GameState)
     
     if (data.type === "input") {
       const player = state.players[connection.id]
@@ -471,10 +484,77 @@ Add the `onMessage` handler for **input** updates:
   },
 ```
 
-Add a fixed tick via **PartyKit alarms** (this is the reliable way to schedule recurring work in PartyKit):
+Add a fixed tick via **PartyKit alarms** (this is the reliable way to schedule recurring work in PartyKit).
+
+The tick advances the authoritative simulation and broadcasts a snapshot to all clients. For reconciliation, the snapshot also includes each player's `lastProcessedInputSeq`.
 
 ```typescript
 const TICK_RATE_MS = 50 // 20Hz
+const TICK_DELTA_TIME = TICK_RATE_MS / 1000
+
+// Helper functions (shared with client)
+function directionFromInput(input: InputState): Vec3 {
+  const x = (input.d ? 1 : 0) + (input.a ? -1 : 0)
+  const z = (input.s ? 1 : 0) + (input.w ? -1 : 0)
+  if (x !== 0 && z !== 0) {
+    return { x: x * 0.707, y: 0, z: z * 0.707 } // Normalize diagonals
+  }
+  return { x, y: 0, z }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+// Shared movement simulation (must match client exactly)
+// In the actual implementation, this is imported from a shared module (e.g., `movement.ts`)
+// to ensure client and server use identical math. For the tutorial, we show the function inline:
+function simulateMovement(position: Vec3, input: InputState, deltaTime: number): Vec3 {
+  const dir = directionFromInput(input)
+  if (dir.x === 0 && dir.z === 0) return position
+  
+  const speed = 5
+  const movement = {
+    x: dir.x * speed * deltaTime,
+    y: 0,
+    z: dir.z * speed * deltaTime,
+  }
+  
+  return {
+    x: clamp(position.x + movement.x, -9.5, 9.5),
+    y: 0.5,
+    z: clamp(position.z + movement.z, -9.5, 9.5),
+  }
+}
+
+function broadcastSnapshot(room, state: GameState) {
+  const snapshot = {
+    type: "snapshot",
+    serverTime: Date.now(),
+    tick: state.tick,
+    players: Object.values(state.players).map(p => ({
+      id: p.id,
+      position: p.position,
+      rotation: p.rotation,
+      lastProcessedInputSeq: p.lastProcessedInputSeq,
+    })),
+  }
+  room.broadcast(JSON.stringify(snapshot))
+}
+
+function tickSimulation(room, state: GameState) {
+  // Advance simulation for all players using their latest inputs
+  for (const playerId in state.players) {
+    const player = state.players[playerId]!
+    player.position = simulateMovement(
+      player.position,
+      player.currentInput,
+      TICK_DELTA_TIME
+    )
+  }
+  state.tick++
+  broadcastSnapshot(room, state)
+}
 
 async function ensureTickScheduled(room) {
   const existing = await room.storage.getAlarm()
@@ -491,15 +571,62 @@ export default {
   },
 
   async onAlarm(room) {
-    const state = (await room.storage.get("state")) ?? { players: {}, tick: 0 }
+    const state = await loadState(room)
     if (Object.keys(state.players).length === 0) return
 
-    // Advance authoritative sim at fixed dt, then broadcast a snapshot.
-    // (In this repo, we broadcast { type: "snapshot", tick, serverTime, players: [...] }.)
-
+    tickSimulation(room, state)
     await room.storage.put("state", state)
     await room.storage.setAlarm(Date.now() + TICK_RATE_MS)
   },
+}
+```
+
+**Why normalize state on load:** PartyKit storage persists across code changes. If you update the player schema (e.g., add `currentInput`), older stored players might be missing fields. `loadState()` normalizes/migrates stored shapes so the tick loop doesn't crash. In production, you'd version your schema; for a POC, normalization is sufficient.
+
+```typescript
+async function loadState(room): Promise<GameState> {
+  const raw = (await room.storage.get<unknown>("state")) ?? ({ players: {}, tick: 0 } satisfies GameState)
+  
+  // Migrate older stored shapes into the current schema
+  if (typeof raw !== "object" || raw === null) {
+    return { players: {}, tick: 0 }
+  }
+  
+  const r = raw as Record<string, unknown>
+  const rawPlayers = (r.players ?? {}) as Record<string, unknown>
+  const tick = typeof r.tick === "number" ? r.tick : 0
+  
+  const players: Record<string, PlayerState> = {}
+  for (const [id, maybePlayer] of Object.entries(rawPlayers)) {
+    if (typeof maybePlayer !== "object" || maybePlayer === null) continue
+    const p = maybePlayer as Record<string, unknown>
+    const pos = (p.position ?? {}) as Record<string, unknown>
+    
+    const position: Vec3 = {
+      x: typeof pos.x === "number" ? pos.x : 0,
+      y: typeof pos.y === "number" ? pos.y : 0.5,
+      z: typeof pos.z === "number" ? pos.z : 0,
+    }
+    
+    const currentInputRaw = p.currentInput as Record<string, unknown> | undefined
+    const currentInput: InputState = currentInputRaw &&
+      typeof currentInputRaw.w === "boolean" &&
+      typeof currentInputRaw.a === "boolean" &&
+      typeof currentInputRaw.s === "boolean" &&
+      typeof currentInputRaw.d === "boolean"
+        ? { w: currentInputRaw.w, a: currentInputRaw.a, s: currentInputRaw.s, d: currentInputRaw.d }
+        : DEFAULT_INPUT
+    
+    players[id] = {
+      id: typeof p.id === "string" ? p.id : id,
+      position,
+      rotation: typeof p.rotation === "number" ? p.rotation : 0,
+      lastProcessedInputSeq: typeof p.lastProcessedInputSeq === "number" ? p.lastProcessedInputSeq : 0,
+      currentInput,
+    }
+  }
+  
+  return { players, tick }
 }
 ```
 
@@ -507,9 +634,13 @@ Finally, add the `onClose` handler for disconnections:
 
 ```typescript
   async onClose(connection: PartyConnection, room) {
-    const state =
-      (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
+    const state = await loadState(room)
     delete state.players[connection.id]
+    
+    // Stop tick loop if room becomes empty
+    if (Object.keys(state.players).length === 0) {
+      await room.storage.setAlarm(Date.now() - 1) // Cancel alarm
+    }
     
     room.broadcast(JSON.stringify({
       type: "player-left",
@@ -521,15 +652,9 @@ Finally, add the `onClose` handler for disconnections:
 } satisfies PartyKitServer
 ```
 
-The server is now the authoritative source of truth — it owns `GameState`, validates actions, and broadcasts updates to all clients.
+The server is now the authoritative source of truth — it owns `GameState`, validates actions, and broadcasts updates to all clients. The fixed tick loop ensures all players advance at the same rate, and snapshots include reconciliation data (`lastProcessedInputSeq`) so clients can rewind and replay inputs correctly.
 
-<Alert title="POC 0 implementation: input-based sync with server reconciliation">
-
-The runnable POC implements **input-based sync** — clients send inputs (WASD keys) with sequence numbers, and the server runs an authoritative simulation at 20Hz. Clients predict locally and reconcile when server snapshots arrive.
-
-This is still a basic implementation: no collisions, no lag compensation, no client-side smoothing on correction beyond simple snap/lerp. But it demonstrates the core techniques: server authority, client-side prediction, and server reconciliation.
-
-</Alert>
+The runnable POC implements **input-based sync** — clients send inputs (WASD keys) with sequence numbers, and the server runs an authoritative simulation at 20Hz. Clients predict locally and reconcile when server snapshots arrive. This is still a basic implementation: no collisions, no lag compensation, no client-side smoothing on correction beyond simple snap/lerp. But it demonstrates the core techniques: server authority, client-side prediction, and server reconciliation.
 
 #### Running the Server
 
@@ -591,7 +716,7 @@ Create `hooks/useMultiplayer.ts` with types and initial state:
 
 ```typescript
 // hooks/useMultiplayer.ts
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import usePartySocket from "partysocket/react"
 
 interface Player {
@@ -604,6 +729,10 @@ interface MultiplayerState {
   connected: boolean
   playerId: string | null
   players: Map<string, Player>
+  // Reconciliation state for local player
+  pendingInputs: Array<{ seq: number; dt: number; keys: { w: boolean; a: boolean; s: boolean; d: boolean } }>
+  lastAckSeq: number
+  authoritativeLocalState: { x: number; y: number; z: number } | null
 }
 
 export function useMultiplayer(roomId: string) {
@@ -611,6 +740,9 @@ export function useMultiplayer(roomId: string) {
     connected: false,
     playerId: null,
     players: new Map(),
+    pendingInputs: [],
+    lastAckSeq: 0,
+    authoritativeLocalState: null,
   })
 ```
 
@@ -638,6 +770,10 @@ Handle incoming messages — start with the `init` message:
             ...prev,
             playerId: data.playerId,
             players: new Map(data.players.map((p: Player) => [p.id, p])),
+            // Reset reconciliation state on reconnect
+            pendingInputs: [],
+            lastAckSeq: 0,
+            authoritativeLocalState: null,
           }))
           break
 ```
@@ -662,15 +798,33 @@ Add handlers for player join/leave:
           break
 ```
 
-Handle snapshots:
+Handle snapshots (authoritative state updates):
 
 ```typescript
         case "snapshot":
           setState(prev => {
             const players = new Map(prev.players)
+            const localPlayerSnapshot = data.players.find((p: any) => p.id === prev.playerId)
 
+            // Update all players from snapshot
             for (const p of data.players) {
               players.set(p.id, { id: p.id, position: p.position, rotation: p.rotation })
+            }
+
+            // Reconciliation for local player: extract acked seq, drop acknowledged inputs
+            if (localPlayerSnapshot && prev.playerId) {
+              const newAckSeq = localPlayerSnapshot.lastProcessedInputSeq
+              const remainingInputs = prev.pendingInputs.filter(
+                (input) => input.seq > newAckSeq
+              )
+
+              return {
+                ...prev,
+                players,
+                lastAckSeq: newAckSeq,
+                authoritativeLocalState: localPlayerSnapshot.position,
+                pendingInputs: remainingInputs,
+              }
             }
 
             return { ...prev, players }
@@ -690,13 +844,24 @@ Add disconnect handler and return the API:
   
   const sendInput = (seq: number, dt: number, keys: { w: boolean; a: boolean; s: boolean; d: boolean }) => {
     socket.send(JSON.stringify({ type: "input", seq, dt, keys }))
+
+    // Track pending inputs so we can reconcile when the next snapshot arrives
+    setState(prev => ({
+      ...prev,
+      pendingInputs: [...prev.pendingInputs, { seq, dt, keys }],
+    }))
   }
   
-  return { ...state, sendInput }
+  const playersArray = useMemo(
+    () => Array.from(state.players.values()),
+    [state.players]
+  )
+
+  return { ...state, playersArray, sendInput }
 }
 ```
 
-The hook encapsulates all networking logic and provides a clean API: connection state, player list, and a function to send movement updates.
+The hook encapsulates all networking logic and provides a clean API: connection state, player list (`playersArray`), reconciliation state (`pendingInputs`, `lastAckSeq`, `authoritativeLocalState`), and a function to send inputs with sequence numbers.
 
 ### Step 3: Game Scene with Player Rendering
 
@@ -724,7 +889,15 @@ import { LocalPlayer } from "./LocalPlayer"
 import { RemotePlayer } from "./RemotePlayer"
 
 export function MultiplayerScene({ roomId }: { roomId: string }) {
-  const { connected, playerId, players, sendInput } = useMultiplayer(roomId)
+  const {
+    connected,
+    playerId,
+    playersArray,
+    sendInput,
+    authoritativeLocalState,
+    lastAckSeq,
+    pendingInputs,
+  } = useMultiplayer(roomId)
   
   if (!connected) {
     return <div>Connecting...</div>
@@ -748,12 +921,15 @@ Set up the 3D scene with lighting and ground:
 Render players — split local vs remote:
 
 ```tsx
-      {Array.from(players.values()).map(player => (
+      {playersArray.map(player => (
         player.id === playerId ? (
           <LocalPlayer 
             key={player.id}
             initialPosition={player.position}
             onInput={sendInput}
+            authoritativeState={authoritativeLocalState}
+            lastAckSeq={lastAckSeq}
+            pendingInputs={pendingInputs}
           />
         ) : (
           <RemotePlayer
@@ -771,82 +947,134 @@ Render players — split local vs remote:
 
 **Key distinction:** `LocalPlayer` handles input and prediction (you control it), while `RemotePlayer` interpolates from network updates (you observe it). This separation is fundamental — your character needs immediate feedback, while others need smooth interpolation.
 
-### Step 4: Local Player with Prediction
+### Step 4: Local Player with Prediction and Reconciliation
 
-The local player predicts movement immediately, then sends to server. This implements the prediction pattern described in [Concept 2](#concept-2-client-side-prediction). <PerplexityLink query="client side prediction implementation javascript" />
+The local player predicts movement immediately, then sends inputs to the server with a monotonically increasing sequence number. When a snapshot arrives, we reconcile: snap to the authoritative position, then replay any un-acked inputs. This implements the prediction + reconciliation pattern described in [Concept 2](#concept-2-client-side-prediction). <PerplexityLink query="client side prediction server reconciliation explained" />
 
 Create `components/LocalPlayer.tsx` with setup:
 
 ```tsx
 // components/LocalPlayer.tsx
-import { useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
-import { useKeyboardControls } from "@react-three/drei"
 import * as THREE from "three"
+import { simulateMovement } from "./movement" // Shared with server
+import type { InputState, Vec3 } from "./movement"
 
 interface LocalPlayerProps {
   initialPosition: { x: number; y: number; z: number }
-  onMove: (position: { x: number; y: number; z: number }, rotation: number) => void
+  onInput: (seq: number, dt: number, keys: InputState) => void
+  authoritativeState: { x: number; y: number; z: number } | null
+  lastAckSeq: number
+  pendingInputs: Array<{ seq: number; dt: number; keys: InputState }>
 }
 
-export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
+export function LocalPlayer({
+  initialPosition,
+  onInput,
+  authoritativeState,
+  lastAckSeq,
+  pendingInputs,
+}: LocalPlayerProps) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const positionRef = useRef(new THREE.Vector3(
-    initialPosition.x, 
-    0.5,
-    initialPosition.z
-  ))
+  const positionRef = useRef(new THREE.Vector3(initialPosition.x, 0.5, initialPosition.z))
+  const inputRef = useRef<InputState>({ w: false, a: false, s: false, d: false })
   const lastSentRef = useRef(0)
-  
-  const [, getKeys] = useKeyboardControls()
+  const seqRef = useRef(0)
+  const lastReconciledSeqRef = useRef(0)
 ```
 
-Add movement logic in `useFrame`:
+Capture input (WASD) with keydown/keyup handlers:
+
+```tsx
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase()
+      if (k === "w" || k === "a" || k === "s" || k === "d") {
+        e.preventDefault()
+        inputRef.current[k] = true
+      }
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase()
+      if (k === "w" || k === "a" || k === "s" || k === "d") {
+        inputRef.current[k] = false
+      }
+    }
+    document.addEventListener("keydown", onKeyDown)
+    document.addEventListener("keyup", onKeyUp)
+    return () => {
+      document.removeEventListener("keydown", onKeyDown)
+      document.removeEventListener("keyup", onKeyUp)
+    }
+  }, [])
+```
+
+Prediction + input sending in `useFrame`. Use a deterministic movement integrator (shared with the server) so client/server math stays aligned:
 
 ```tsx
   useFrame((_, delta) => {
     if (!meshRef.current) return
-    
-    const { forward, backward, left, right } = getKeys()
-    const speed = 5
-    const movement = new THREE.Vector3()
-    
-    // Calculate movement direction
-    if (forward) movement.z -= 1
-    if (backward) movement.z += 1
-    if (left) movement.x -= 1
-    if (right) movement.x += 1
-    
-    if (movement.length() > 0) {
-      movement.normalize().multiplyScalar(speed * delta)
-      positionRef.current.add(movement)
-      
-      // Update mesh immediately (prediction)
-      meshRef.current.position.copy(positionRef.current)
-```
 
-**Why throttle to ~20Hz:**
-Network updates are expensive. At 60Hz (every frame), we'd send 60 updates/second per player. At 20Hz, we send 20 updates/second. The tradeoff: Lower frequency means less responsive sync, but reduces bandwidth and server load.
+    // Client-side prediction: simulate movement locally
+    const predictedPosition = simulateMovement(
+      {
+        x: positionRef.current.x,
+        y: positionRef.current.y,
+        z: positionRef.current.z,
+      },
+      inputRef.current,
+      delta
+    )
 
-**What happens at different frequencies:**
-- 60Hz: Smooth sync, high bandwidth, high server load
-- 20Hz: Acceptable sync, reasonable bandwidth, manageable server load
-- 10Hz: Laggy sync, low bandwidth, low server load
+    positionRef.current.set(
+      predictedPosition.x,
+      predictedPosition.y,
+      predictedPosition.z
+    )
+    meshRef.current.position.copy(positionRef.current)
 
-We chose 20Hz as a balance. For this POC, it's sufficient. We can increase later if needed.
-
-```tsx
-      // Send to server at ~20Hz (not every frame)
-      const now = Date.now()
-      if (now - lastSentRef.current > 50) {
-        onMove(
-          { x: positionRef.current.x, y: positionRef.current.y, z: positionRef.current.z },
-          meshRef.current.rotation.y
-        )
-        lastSentRef.current = now
-      }
+    // Send inputs to server at ~20Hz
+    const now = performance.now()
+    if (now - lastSentRef.current > 50) {
+      seqRef.current++
+      onInput(seqRef.current, delta, { ...inputRef.current })
+      lastSentRef.current = now
     }
   })
+```
+
+Reconciliation: when a snapshot arrives, snap to the authoritative state and replay any un-acked inputs:
+
+```tsx
+  useEffect(() => {
+    if (!authoritativeState || lastAckSeq === lastReconciledSeqRef.current) return
+
+    // Snap to authoritative position
+    let reconciledPos: Vec3 = {
+      x: authoritativeState.x,
+      y: authoritativeState.y,
+      z: authoritativeState.z,
+    }
+
+    // Replay all pending inputs that haven't been acknowledged
+    for (const input of pendingInputs) {
+      if (input.seq > lastAckSeq) {
+        reconciledPos = simulateMovement(reconciledPos, input.keys, input.dt)
+      }
+    }
+
+    positionRef.current.set(
+      reconciledPos.x,
+      reconciledPos.y,
+      reconciledPos.z
+    )
+    if (meshRef.current) {
+      meshRef.current.position.copy(positionRef.current)
+    }
+
+    lastReconciledSeqRef.current = lastAckSeq
+  }, [authoritativeState?.x, authoritativeState?.y, authoritativeState?.z, lastAckSeq, pendingInputs])
 ```
 
 Render the mesh:
@@ -861,17 +1089,21 @@ Render the mesh:
 }
 ```
 
-**Key patterns:** Movement updates immediately (prediction). Network updates throttled to ~20Hz. Position stored in ref to avoid re-renders. We normalize the direction vector to ensure consistent speed regardless of diagonal movement.
+**Key patterns:** 
+- Movement updates immediately (prediction) using the same deterministic integrator as the server (`simulateMovement`).
+- Inputs sent with sequence numbers at ~20Hz.
+- On snapshot arrival: snap to authoritative position, drop acknowledged inputs (filtered in the hook), replay remaining inputs.
+- This ensures the local player stays in sync with the server while feeling instant.
 
-### Step 5: Remote Player with Interpolation
+### Step 5: Remote Player with Snapshot Interpolation
 
-Remote players interpolate smoothly between network updates. <PerplexityLink query="lerp interpolation smooth movement game networking" />
+Remote players use a small **snapshot buffer** and render slightly "in the past" so we can interpolate between two known snapshots (instead of lerping toward the latest and stuttering at 20Hz). This is the standard approach for smooth remote rendering. <PerplexityLink query="snapshot interpolation buffer multiplayer games" />
 
 Create `components/RemotePlayer.tsx`:
 
 ```tsx
 // components/RemotePlayer.tsx
-import { useRef, useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 
@@ -881,37 +1113,79 @@ interface Player {
   rotation: number
 }
 
+type Snapshot = {
+  position: THREE.Vector3
+  timestamp: number
+}
+
+const BUFFER_DELAY_MS = 100 // Render ~2 ticks behind (smooths jitter)
+const MAX_BUFFER_SIZE = 8
+
 export function RemotePlayer({ player }: { player: Player }) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const targetPosition = useRef(new THREE.Vector3(
-    player.position.x,
-    0.5,
-    player.position.z
-  ))
+  const snapshotBufferRef = useRef<Snapshot[]>([])
 ```
 
-Update target position when network updates arrive:
+Push a snapshot into the buffer whenever `player.position` changes (snapshots arrive ~20Hz):
 
 ```tsx
-  // Update target when we receive network updates
+  // Buffer snapshots using the same clock domain as the render loop (performance.now())
   useEffect(() => {
-    targetPosition.current.set(
-      player.position.x,
-      0.5,
-      player.position.z
-    )
-  }, [player.position])
+    const timestamp = performance.now()
+    const snapshot: Snapshot = {
+      position: new THREE.Vector3(player.position.x, 0.5, player.position.z),
+      timestamp,
+    }
+
+    snapshotBufferRef.current.push(snapshot)
+    // Keep buffer size limited
+    if (snapshotBufferRef.current.length > MAX_BUFFER_SIZE) {
+      snapshotBufferRef.current.shift()
+    }
+  }, [player.position.x, player.position.z])
 ```
 
-Interpolate smoothly each frame:
+Interpolate between the two snapshots around `renderTime = now - BUFFER_DELAY_MS`:
 
 ```tsx
-  // Smoothly interpolate toward target
-  useFrame((_, delta) => {
+  useFrame(() => {
     if (!meshRef.current) return
-    
-    // Lerp toward target position (~100ms smoothing)
-    meshRef.current.position.lerp(targetPosition.current, Math.min(1, delta * 10))
+
+    const buffer = snapshotBufferRef.current
+    if (buffer.length === 0) return
+
+    const now = performance.now()
+    const renderTime = now - BUFFER_DELAY_MS
+
+    // Find the two snapshots to interpolate between
+    let prev: Snapshot | null = null
+    let next: Snapshot | null = null
+
+    for (const snap of buffer) {
+      if (snap.timestamp <= renderTime) {
+        prev = snap
+      } else {
+        next = snap
+        break
+      }
+    }
+
+    // If we have both prev and next, interpolate at renderTime
+    if (prev && next) {
+      const timeDiff = next.timestamp - prev.timestamp
+      const t = timeDiff > 0 ? (renderTime - prev.timestamp) / timeDiff : 0
+      const clampedT = Math.max(0, Math.min(1, t))
+
+      const interpolated = new THREE.Vector3().lerpVectors(
+        prev.position,
+        next.position,
+        clampedT
+      )
+      meshRef.current.position.copy(interpolated)
+    } else if (prev) {
+      // Only have previous, ease toward it
+      meshRef.current.position.lerp(prev.position, 0.1)
+    }
   })
 ```
 
@@ -927,22 +1201,17 @@ Render the mesh:
 }
 ```
 
-**Why lerp factor of 10:**
-The `delta * 10` smoothing factor (~100ms) balances responsiveness with jitter reduction. Higher values (20) are snappier but jittery. Lower values (5) are smoother but laggy. Factor 10 works well for 20Hz updates.
+**Why a buffer delay:**
+Rendering ~100ms behind gives us two snapshots to interpolate between, removing most "20Hz stepping" without making teammates feel mushy. When jitter increases, increasing the delay to ~150ms is often a better lever than adjusting lerp factors.
 
-**What happens at different factors:**
-- Factor 5: Smooth but laggy. Remote players feel delayed.
-- Factor 10: Balanced. Smooth movement with acceptable responsiveness.
-- Factor 20: Snappy but jittery. Visible stuttering on network jitter.
-
-We chose 10 as a starting point. We can tune based on testing.
+**What's still left rough:**
 
 **What was left rough:**
 We do keep a small snapshot buffer and interpolate (rendering slightly “in the past”).
 
 What’s still left rough:
 - No server↔client clock sync (we buffer using local arrival time, which is fine for a POC but not fully “textbook”).
-- No extrapolation when packets arrive late.
+- No extrapolation when packets arrive late (high latency causes visible hitches).
 
 ---
 
