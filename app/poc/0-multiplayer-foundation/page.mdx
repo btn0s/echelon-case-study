@@ -178,6 +178,8 @@ But if the server owns *everything*, movement feels laggy. So we let clients pre
 
 This split is the foundation: **server authoritative for critical state, client predictive for responsiveness.**
 
+<AuthorityDemo />
+
 <AccordionSection title="Why never trust the client" value="trust">
 
 If the client tells the server "I completed the objective," a cheater can just send that message without actually doing anything.
@@ -202,6 +204,11 @@ Remember the paradox: wait for server confirmation, and movement feels laggy. Sh
 Press forward → you move immediately → server confirms later. The client doesn't wait. If the server says "actually, you collided with something," the client corrects smoothly — sliding to the correct position rather than snapping (snapping causes visible jitter).
 
 This is why movement can feel instant even at 150ms latency. The client predicts, the server confirms, corrections happen smoothly.
+
+<Anchor id="reconciliation-demo" />
+**Try it:** hold WASD. The blue square is your predicted movement. The red square is server truth (delayed). “Snap” shows why raw correction jitters; “smooth” shows why we blend.
+
+<ReconciliationDemo />
 
 <AccordionSection title="What can and can't be predicted" value="predict">
 
@@ -234,6 +241,10 @@ Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
 The client fills in the gaps. Without interpolation, remote players teleport every 50ms. With interpolation, they move smoothly.
 
 The key insight: **you predict yourself, you interpolate everyone else.** Your character feels instant. Teammates appear smooth but slightly delayed.
+
+**Try it:** move with WASD, then mess with tick rate/jitter/loss. You’ll see remote motion go from smooth → steppy → hitchy, even though your local motion stays responsive.
+
+<SnapshotInterpolationDemo />
 
 <AccordionSection title="How Left 4 Dead 2 handles this" value="l4d2">
 
@@ -939,6 +950,8 @@ What we deferred and why:
 - **Extrapolation:** Predicting where remote players are heading hides latency when packets arrive late. We don't extrapolate, so high latency or packet loss causes visible hitches. <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
 - **Network diagnostics:** RTT, packet loss, tick rate — essential for debugging. We have no overlay yet, so diagnosing network issues means reading logs. <PerplexityLink query="network debug overlay multiplayer games" />
 - **Input-based prediction:** Sending inputs (not positions) lets the server simulate authoritatively — prevents cheating, enables correction. We send positions directly, which is faster to build but not secure. <PerplexityLink query="client side prediction server reconciliation multiplayer" />
+
+The “correction” part we intentionally skipped in POC 0 lives up in the theory section now: [Prediction + reconciliation demo](#reconciliation-demo).
 
 ## What's Next
 

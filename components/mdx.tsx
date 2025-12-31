@@ -9,10 +9,13 @@ import { Alert } from '@/components/mdx/alert'
 import { Anchor } from '@/components/mdx/anchor'
 import { PerplexityLink } from '@/components/mdx/perplexity-link'
 import { LatencyDemo } from '@/components/demos/latency-demo'
+import { SnapshotInterpolationDemo } from '@/components/demos/snapshot-interpolation-demo'
+import { ReconciliationDemo } from '@/components/demos/reconciliation-demo'
+import { AuthorityDemo } from '@/components/demos/authority-demo'
 import type { ComponentProps } from 'react'
 
 function CustomLink(props: ComponentProps<'a'>) {
-  let href = props.href
+  const href = props.href
 
   if (href?.startsWith('/')) {
     return (
@@ -30,7 +33,8 @@ function CustomLink(props: ComponentProps<'a'>) {
 }
 
 function RoundedImage(props: ComponentProps<typeof Image>) {
-  return <Image alt={props.alt || ''} className="rounded-lg" {...props} />
+  // Spread props first so we don't duplicate attributes.
+  return <Image {...props} alt={props.alt || ''} className="rounded-lg" />
 }
 
 function Code({ children, className, ...props }: ComponentProps<'code'>) {
@@ -42,7 +46,7 @@ function Code({ children, className, ...props }: ComponentProps<'code'>) {
     const code = String(children).replace(/\n$/, '') // Remove trailing newline
     
     // Try to detect if it's plain text/ASCII art (no language specified or empty language)
-    const language = className.replace('language-', '')
+    const language = className?.replace('language-', '') ?? ''
     if (!language || language === 'text' || language === 'plaintext') {
       // Plain text/ASCII art - don't highlight, just render
       return <code className={className} {...props}>{children}</code>
@@ -90,7 +94,7 @@ function slugify(str: string) {
 
 function createHeading(level: number) {
   const Heading = ({ children }: { children: React.ReactNode }) => {
-    let slug = slugify(String(children))
+    const slug = slugify(String(children))
     return React.createElement(
       `h${level}`,
       { id: slug },
@@ -110,7 +114,7 @@ function createHeading(level: number) {
   return Heading
 }
 
-let components = {
+const components = {
   h1: createHeading(1),
   h2: createHeading(2),
   h3: createHeading(3),
@@ -127,6 +131,9 @@ let components = {
   Anchor,
   PerplexityLink,
   LatencyDemo,
+  SnapshotInterpolationDemo,
+  ReconciliationDemo,
+  AuthorityDemo,
 }
 
 export function CustomMDX(props: ComponentProps<typeof MDXRemote>) {

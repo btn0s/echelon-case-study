@@ -70,7 +70,7 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
     };
   }, []);
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = () => {
     // Always focus the card, even when clicking controls
     // This ensures keyboard input continues to work
     cardRef.current?.focus();

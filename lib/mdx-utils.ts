@@ -7,20 +7,20 @@ type Metadata = {
 
 function parseFrontmatter(fileContent: string) {
   // Match: export const metadata = { ... }
-  let frontmatterRegex = /^export const metadata = \{([\s\S]*?)\}\s*\n/
-  let match = frontmatterRegex.exec(fileContent)
+  const frontmatterRegex = /^export const metadata = \{([\s\S]*?)\}\s*\n/
+  const match = frontmatterRegex.exec(fileContent)
   
   if (!match) {
     return { metadata: null, content: fileContent.trim() }
   }
 
-  let frontMatterBlock = match[1]
-  let content = fileContent.replace(frontmatterRegex, '').trim()
+  const frontMatterBlock = match[1]
+  const content = fileContent.replace(frontmatterRegex, '').trim()
   
   // Parse the metadata object - handle both single and double quotes, trailing commas
-  let metadata: Partial<Metadata> = {}
-  let titleMatch = frontMatterBlock.match(/title:\s*["']([^"']+)["']/)
-  let descMatch = frontMatterBlock.match(/description:\s*["']([^"']+)["']/)
+  const metadata: Partial<Metadata> = {}
+  const titleMatch = frontMatterBlock.match(/title:\s*["']([^"']+)["']/)
+  const descMatch = frontMatterBlock.match(/description:\s*["']([^"']+)["']/)
   
   if (titleMatch) metadata.title = titleMatch[1]
   if (descMatch) metadata.description = descMatch[1]
@@ -32,6 +32,6 @@ function parseFrontmatter(fileContent: string) {
 }
 
 export function readMDXFile(filePath: string) {
-  let rawContent = fs.readFileSync(filePath, 'utf-8')
+  const rawContent = fs.readFileSync(filePath, 'utf-8')
   return parseFrontmatter(rawContent)
 }
