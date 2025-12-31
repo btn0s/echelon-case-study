@@ -5,13 +5,13 @@ import { QUESTIONS } from "@/lib/caseStudy/questions";
 import { ArrowUpRight, ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Designing Echelon: A Co-op Heist Game Case Study",
+  title: "Echelon: A Game Design Case Study",
   description:
-    "How I designed a multiplayer co-op heist game with physics destruction, AI guards, and economic pressure. Nine prototypes, one game.",
+    "Nine prototypes, one game. A case study in breaking down a complex multiplayer game into answerable design questions.",
   openGraph: {
-    title: "Echelon Case Study",
+    title: "Echelon: A Game Design Case Study",
     description:
-      "A case study in designing a multiplayer co-op heist game. How I solved physics sync, AI behavior, and cooperative objectives.",
+      "Nine prototypes. One game. Breaking down a complex design problem into answerable questions.",
   },
 };
 
@@ -25,35 +25,28 @@ export default function HomePage() {
           {/* Header */}
           <header>
             <h1 className="text-balance">
-              Designing Echelon: A co-op heist game case study
+              Echelon: A Game Design Case Study
             </h1>
             <p className="text-lg text-muted-foreground">
-              How I designed a multiplayer game with physics destruction, AI
-              guards, and economic pressure
+              Nine prototypes. One game. Breaking down a complex design problem
+              into answerable questions.
             </p>
           </header>
 
           <section>
             <h2>The Game</h2>
             <p>
-              Echelon is a co-op heist game where you and a partner are
-              corporate mercenaries in a megacity where superheroes work for the
-              highest bidder. Every job presents the same dilemma: go quiet and
-              stay safe, or go loud and get rich. The walls aren&apos;t
-              obstacles—they&apos;re shortcuts you can blow open, if you&apos;re
-              willing to pay the price.
+              Echelon is a co-op heist game. You and a partner are corporate
+              mercenaries in a megacity where superheroes work for the highest
+              bidder. Go quiet and stay safe, or go loud and get rich. The
+              walls aren&apos;t obstacles—they&apos;re shortcuts you can blow
+              open, if you&apos;re willing to pay the price.
             </p>
             <p>
-              Make too much noise and a superpowered enforcer crashes through to
-              stop you. Every tool costs money you can&apos;t afford to lose.
-              Every noise draws attention you can&apos;t afford. Three failed
-              missions and you&apos;re fired—new operator, empty wallet, start
-              over.
-            </p>
-            <p>
-              It&apos;s a game about desperate improvisation: the moment your
-              careful plan meets chaotic physics and you have to decide what to
-              do next.
+              Make too much noise and a superpowered enforcer crashes through.
+              Every tool costs money. Every noise draws attention. Three failed
+              missions and you&apos;re fired. It&apos;s a game about desperate
+              improvisation.
             </p>
             <div className="not-prose mt-4">
               <Link
@@ -66,74 +59,18 @@ export default function HomePage() {
           </section>
 
           <section>
-            <h2>The Design Challenge</h2>
+            <h2>The Approach</h2>
             <p>
-              A multiplayer co-op heist game needs physics destruction that syncs
-              across clients, AI that responds to noise, economic pressure, and
-              cooperative objectives—all at once. Each system depends on the
-              others. Get one wrong, and the whole experience breaks down.
-            </p>
-            <p>
-              My usual approach is to break problems down into small questions
-              with small answers. Each question becomes a prototype. Each
-              prototype proves one thing works—and works well.
-            </p>
-            <p>
-              Game design is a stress test of this process. Unlike linear UX
-              flows or common interface problems, systems interact. Physics
-              destruction affects heat. Heat affects AI behavior. AI behavior
-              affects economic pressure. Each system depends on the others.
-            </p>
-            <p>
-              I can prototype in isolation, but I need to know which isolated
-              prototypes will actually answer what I need to know about how these
-              systems interact. Which questions matter? Which prototypes will
-              reveal the right answers? I didn't want to waste time building the
-              wrong things.
+              Physics destruction, AI guards, economic pressure, cooperative
+              objectives—each system depends on the others. I wrote{" "}
+              {totalQuestions} design questions and broke them into nine core
+              prototypes. Each POC answers a subset of questions. Together, they
+              show how the systems interact.
             </p>
           </section>
 
           <section>
-            <h2>How I Designed It</h2>
-            <p>
-              When using AI, context management is critical. I decided to do an
-              experiment: do all the design work and research ahead of time.
-              Document it all as if this is the ideal case study and it's done
-              already. Then build prototypes to test it.
-            </p>
-            <p>
-              This approach helps me learn about what I'm building and think
-              through things. While I'm writing, AI assists and helps me explore
-              ideas. Later, when I'm implementing, AI has the full context.
-              Effectively, I'm writing a tutorial for myself.
-            </p>
-            <p>
-              I wrote {totalQuestions} critical questions spanning core loops,
-              design pillars, and system interactions. I mapped them to
-              prototypes. Each POC follows the same structure:{" "}
-              <strong>
-                Problem &rarr; Options &rarr; Implementation &rarr; Results
-              </strong>
-              .
-            </p>
-            <p>
-              This consistency enabled AI collaboration. With explicit questions
-              and a clear template, the AI had context. It knew what I was trying
-              to prove. Each POC stands alone. Together, they show how I
-              designed Echelon.
-            </p>
-          </section>
-
-          <section>
-            <h2>Nine Design Prototypes</h2>
-            <p>
-              I built multiplayer networking first—the foundation everything
-              else depends on. Then I added destruction, heat, AI, objectives,
-              economy, and boss encounters, each building on what came before.
-              The final POC integrates them all to see how the systems work
-              together.
-            </p>
-            <p>Each prototype answers a design question.</p>
+            <h2>The Prototypes</h2>
             <div className="flex flex-col gap-2 not-prose mt-6">
               {POCS.map((poc, index) => (
                 <Link
