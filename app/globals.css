@@ -159,6 +159,38 @@
   cursor: pointer;
 }
 
+/* Add scroll offset for anchor links - scroll-margin-top on target elements */
+.prose h1[id],
+.prose h2[id],
+.prose h3[id],
+.prose h4[id],
+.prose h5[id],
+.prose h6[id],
+.prose-sm h1[id],
+.prose-sm h2[id],
+.prose-sm h3[id],
+.prose-sm h4[id],
+.prose-sm h5[id],
+.prose-sm h6[id] {
+  scroll-margin-top: 24px;
+}
+
+/* Also apply to headings without id selector for broader coverage */
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6,
+.prose-sm h1,
+.prose-sm h2,
+.prose-sm h3,
+.prose-sm h4,
+.prose-sm h5,
+.prose-sm h6 {
+  scroll-margin-top: 24px;
+}
+
 .anchor:hover {
   @apply visible;
 }
