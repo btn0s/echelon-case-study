@@ -178,6 +178,8 @@ export function InterpolationDemo() {
 
   return (
     <DemoContainer
+      autoPlay={true}
+      hideOverlay={true}
       controls={
         <div className="w-full flex justify-center">
           <div className="flex items-center gap-4 flex-wrap">

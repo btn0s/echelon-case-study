@@ -5,14 +5,22 @@ import { useRef, useEffect, type ReactNode } from "react";
 interface DemoContainerProps {
   controls: ReactNode;
   children: ReactNode;
+  autoPlay?: boolean; // If true, always active, no hints, no overlay
+  hideOverlay?: boolean; // If true, disables the darkening overlay effect
 }
 
-export function DemoContainer({ controls, children }: DemoContainerProps) {
+export function DemoContainer({ controls, children, autoPlay = false, hideOverlay = false }: DemoContainerProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const card = cardRef.current;
     if (!card) return;
+
+    // Auto-play mode: always active, no click handlers needed
+    if (autoPlay) {
+      card.dataset.active = "true";
+      return;
+    }
 
     const setActive = (active: boolean) => {
       if (active) {
@@ -68,7 +76,7 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
       window.removeEventListener("pointerdown", handlePointerDown, true);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
+  }, [autoPlay]);
 
   const handleClick = () => {
     // Always focus the card, even when clicking controls
@@ -89,20 +97,27 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
     <div
       ref={cardRef}
       data-game-container
-      className="game-container rounded-lg border bg-card shadow-xs focus:outline-none data-active:ring-4 data-active:ring-border cursor-pointer overflow-hidden transition-all duration-200"
-      tabIndex={0}
-      onClick={handleClick}
+      data-no-overlay={hideOverlay ? "true" : undefined}
+      className={`game-container rounded-lg border bg-card shadow-xs focus:outline-none overflow-hidden transition-all duration-200 ${
+        autoPlay
+          ? ""
+          : "data-active:ring-4 data-active:ring-border cursor-pointer"
+      }`}
+      tabIndex={autoPlay ? -1 : 0}
+      onClick={autoPlay ? undefined : handleClick}
     >
       <div className="relative h-64 bg-muted/30">
         {children}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm border rounded-md px-2 py-1 text-xs text-muted-foreground">
-            Click to control
+        {!autoPlay && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-2 left-2 bg-background/80 backdrop-blur-sm border rounded-md px-2 py-1 text-xs text-muted-foreground">
+              Click to control
+            </div>
+            <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border rounded-md px-2 py-1 text-xs text-muted-foreground">
+              WASD to move
+            </div>
           </div>
-          <div className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border rounded-md px-2 py-1 text-xs text-muted-foreground">
-            WASD to move
-          </div>
-        </div>
+        )}
       </div>
       <div
         className="border-t p-4 flex gap-4 items-center flex-wrap"

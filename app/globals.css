@@ -138,8 +138,8 @@
   opacity: 0%;
 }
 
-#main-content:has([data-game-container][data-active])::before {
-  opacity: 100%;
+#main-content:has([data-game-container][data-active]:not([data-no-overlay]))::before {
+  opacity: 100% !important;
 }
 
 /* Keep the game card above the dim overlay */
