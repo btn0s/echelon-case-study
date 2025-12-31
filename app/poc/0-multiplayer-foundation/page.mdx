@@ -1,15 +1,15 @@
 export const metadata = {
   title: "POC 0: Multiplayer Foundation",
-  description: "Building reliable multiplayer sync for cooperative gameplay. The invisible infrastructure that every other system depends on.",
+  description: "Building reliable multiplayer sync for cooperative gameplay. The foundation that every other system depends on.",
 }
 
 # POC 0: Multiplayer Foundation
 
 ## The Problem We're Solving
 
-Before we can build destructible walls, heat systems, or Super encounters, we need two players to exist in the same world. This sounds simple. It is not.
+Before we can build destructible walls, heat systems, or Super encounters, we need two players to exist in the same world.
 
-Multiplayer networking is the invisible infrastructure that every other system depends on. Get it wrong, and players see different worlds. Get it really wrong, and the game feels unplayable — laggy, inconsistent, frustrating. This POC establishes the foundation that POCs 1-7 will build upon.
+Multiplayer networking is the foundation that every other system depends on. Get it wrong, and players see different worlds. Get it really wrong, and the game feels unplayable — laggy, inconsistent, frustrating. This POC establishes the networking layer that POCs 1-7 will build upon.
 
 **What we're validating:** Can we build reliable multiplayer sync that feels responsive for cooperative gameplay?
 
@@ -260,7 +260,7 @@ We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 
 The React renderer for Three.js. Lets us build 3D scenes with React components. We'll use this for all game rendering. <PerplexityLink query="react three fiber vs vanilla threejs pros cons" />
 
 **Zustand**
-Minimal state management from the pmndrs ecosystem. R3F uses it internally, and we'll use it for local game state. Important: Zustand is client-side only — we need networking to sync between clients. <PerplexityLink query="zustand state management react three fiber" />
+Minimal state management from the pmndrs ecosystem. R3F uses it internally, and we'll use it for local game state. Note: Zustand is client-side only — we need networking to sync between clients. <PerplexityLink query="zustand state management react three fiber" />
 
 **WebSockets**
 The transport layer for real-time communication. We have options for the server: <PerplexityLink query="websocket vs webrtc for multiplayer games" />
@@ -465,7 +465,7 @@ This hook encapsulates all the networking logic on the client side. It handles c
 - Handles all the WebSocket event listeners in one place
 
 **State management approach:**
-We're using React's `useState` with a `Map` for players. This gives us O(1) lookups by player ID, which is important when we have many players. The state updates immutably — we create new Maps on each update to trigger React re-renders.
+We're using React's `useState` with a `Map` for players. This gives us O(1) lookups by player ID, avoiding O(n) array searches when we have many players. The state updates immutably — we create new Maps on each update to trigger React re-renders.
 
 <CodeWalkthrough title="useMultiplayer hook">
 
