@@ -16,10 +16,12 @@ Multiplayer networking is the foundation that every other system depends on. Get
 **TL;DR**
 - **Architecture:** Dedicated client-server (server authoritative)
 - **Prototype stack:** PartyKit (server) + WebSockets + React Three Fiber (rendering)
-- **Movement model:** predict your own movement locally, interpolate everyone else
+- **Movement model:** local movement updates immediately, remote players interpolate between network snapshots
 - **Network target:** send movement ~20Hz, render at frame rate
 - **Done when:** two clients can connect/reconnect and see each other move smoothly under ~150ms RTT
 - **Out of scope (for this POC):** input sequencing/reconciliation, anti-cheat, authoritative physics sync
+
+**Note:** POC 0 uses transform broadcast (clients send position/rotation directly). True input-based prediction with server reconciliation comes in later POCs.
 
 ---
 
@@ -47,19 +49,19 @@ John Carmack's Quake was one of the first games to implement true client-server 
 
 **1999-2001: Half-Life and lag compensation**
 
-Valve's GoldSrc engine (used for Half-Life, Counter-Strike) introduced sophisticated lag compensation — the server would "rewind time" to check if a player's shot actually hit where they were aiming, accounting for their latency. This made high-ping players competitive. <PerplexityLink query="valve lag compensation how it works counter-strike" />
+Valve's GoldSrc engine (used for Half-Life, Counter-Strike) introduced sophisticated lag compensation — the server would "rewind time" to check if a player's shot actually hit where they were aiming, accounting for their latency. This made high-ping players competitive. Yahn Bernier presented the technique at GDC 2001 in "Leveling the Playing Field." ([Valve lag compensation docs](https://developer.valvesoftware.com/wiki/Lag_compensation)) <PerplexityLink query="valve lag compensation how it works counter-strike" />
 
-**2001: Gaffer on Games**
+**2014-2015: Gaffer on Games**
 
-Glenn Fiedler began publishing his "Gaffer on Games" articles, providing detailed technical explanations of networking concepts. His articles on [Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) and [State Synchronization](https://gafferongames.com/post/state_synchronization/) remain essential reading 20+ years later.
+Glenn Fiedler's "Gaffer on Games" articles provide detailed technical explanations of networking concepts. His articles on [Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) (published November 28, 2014) and [State Synchronization](https://gafferongames.com/post/state_synchronization/) (published January 5, 2015) remain essential reading for understanding modern game networking.
 
 **2006-2010: Source Engine refinements**
 
 Valve's Source engine (Half-Life 2, Team Fortress 2, Left 4 Dead) refined these techniques further. Their [Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) documentation is one of the best public explanations of production networking.
 
-**2019: GGPO and rollback renaissance**
+**2006-2019: GGPO and rollback renaissance**
 
-Fighting games pioneered rollback netcode (predicting inputs rather than waiting for confirmation), and libraries like GGPO made this accessible. While overkill for our co-op game, understanding rollback helps appreciate the tradeoff space. <PerplexityLink query="GGPO rollback netcode explained fighting games" />
+Fighting games pioneered rollback netcode (predicting inputs rather than waiting for confirmation). GGPO was first released in late 2006 by Tony Cannon and made open source in October 2019. While overkill for our co-op game, understanding rollback helps appreciate the tradeoff space. <PerplexityLink query="GGPO rollback netcode explained fighting games" />
 
 </LearnMore>
 
@@ -162,7 +164,7 @@ For critical game state, the server is authoritative:
 - Inventory
 
 For responsiveness, the client can *predict* some outcomes locally (while the server remains authoritative and can correct):
-- Player movement (predict locally, server corrects via reconciliation)
+- Player movement (in POC 0, we update locally and broadcast transforms; true prediction with reconciliation comes in later POCs)
 - Visual effects (cosmetic only)
 
 <Pitfall title="Never trust the client for critical state">
@@ -190,6 +192,8 @@ When you press "forward":
 2. **With prediction:** Press key → you move immediately → server confirms later (feels responsive)
 
 The catch: sometimes you'll be wrong. The server might say "actually, you collided with something" or "actually, you were stunned." When that happens, you need to correct smoothly.
+
+**POC 0 note:** This POC uses a simplified approach — local movement updates immediately and we broadcast transforms. True input-based prediction with sequence numbers and server reconciliation is deferred to later POCs (see the Pitfall section below for details).
 
 <LearnMore title="How prediction actually works">
 
@@ -234,11 +238,11 @@ Server sends:  [t=0, x=0] ........ [t=100ms, x=10] ........ [t=200ms, x=20]
 Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
 ```
 
-This introduces a small delay (usually one snapshot period, ~50ms) but makes everything look smooth.
+This introduces a small delay (an interpolation buffer, typically 1-2 snapshot periods or ~100ms+) to absorb network jitter and ensure smooth movement. The buffer trades a small amount of latency for visual smoothness.
 
 <IndustryExample game="Left 4 Dead 2" relevance="co-op with AI sync">
 
-Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay. Clients receive snapshots and interpolate between them. <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
+Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay (this tickrate is fixed and cannot be altered without causing server timing issues). Clients receive snapshots and interpolate between them. ([Valve Source Multiplayer Networking docs](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)) <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
 
 For AI zombies, the server is fully authoritative — clients just render where the server says zombies are. This ensures all players see zombies in the same positions, which is critical for cooperative gameplay.
 
@@ -272,7 +276,9 @@ The transport layer for real-time communication. We have options for the server:
 | [Colyseus](https://colyseus.io/) | Medium-High | Game-specific features (rooms, state sync) |
 | [Hathora](https://hathora.dev/) | Medium | Production game hosting |
 
-**For this POC, we'll use PartyKit** — it's the fastest way to get a WebSocket server running, deploys to the edge (low latency), and has excellent DX. <PerplexityLink query="partykit websocket edge deployment tutorial" />
+**For this POC, we'll use PartyKit** — it's the fastest way to get a WebSocket server running, has excellent DX, and deploys to Cloudflare's edge network. 
+
+**Important nuance:** PartyKit rooms are backed by Cloudflare Durable Objects, which are instantiated in a single location (optionally influenced by `locationHint`). This means a room provides low latency when players are near that location, but doesn't automatically distribute globally. For co-op games with players in the same region, this works well. For global distribution, you'd need region-specific rooms or a different approach. <PerplexityLink query="partykit websocket edge deployment tutorial" />
 
 ### Relevant Resources
 
@@ -281,12 +287,13 @@ The transport layer for real-time communication. We have options for the server:
 - [Maya Nedeljković Batić: R3F + WebSocket Game](https://www.maya-ndljk.com/talks/r3f-websocket-game) — Conference talk with code
 
 **Foundational Reading:**
-- [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) — Essential concepts
+- [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) (Nov 28, 2014) — Essential concepts
+- [Gaffer on Games: State Synchronization](https://gafferongames.com/post/state_synchronization/) (Jan 5, 2015) — Detailed implementation patterns
 - [Valve: Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — Production-grade patterns
 - [Gabriel Gambetta: Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — Interactive explanations with diagrams
 
 **Libraries:**
-- [PartyKit](https://partykit.io/) — Edge-deployed WebSocket server
+- [PartyKit](https://partykit.io/) — Edge-deployed WebSocket server (backed by Cloudflare Durable Objects)
 - [Playroom Kit](https://joinplayroom.com/) — Multiplayer React hooks (alternative approach)
 - [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) — Physics, which we'll need to sync in POC 1
 
@@ -328,7 +335,7 @@ Movement sync is the canary in the coal mine. If we can't make two players see e
 
 PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. <PerplexityLink query="partykit cloudflare workers websocket server setup" />
 
-The server is the authoritative source of truth. It maintains game state, validates player actions, and broadcasts updates to all connected clients. PartyKit's `room.storage` gives us persistent state that survives reconnects — critical for a multiplayer game.
+The server is the authoritative source of truth. It maintains game state, validates player actions, and broadcasts updates to all connected clients. PartyKit's `room.storage` provides persistent state that survives server restarts, deployments, and hibernation — critical for a multiplayer game where players need to rejoin seamlessly. ([PartyKit storage docs](https://docs.partykit.io/guides/persisting-state-into-storage/))
 
 **What we're building:**
 - A server that tracks all players in a room
@@ -337,10 +344,12 @@ The server is the authoritative source of truth. It maintains game state, valida
 - Persistent storage so players can rejoin and see the current game state
 
 **Why PartyKit:**
-- Edge deployment means low latency for players worldwide
+- Edge deployment provides low latency when rooms are placed near players (via Cloudflare Durable Objects)
 - Built-in room management handles WebSocket connections automatically
-- `room.storage` provides persistent state without a database
+- `room.storage` provides persistent state without a database (survives restarts/hibernation)
 - TypeScript-first API with excellent DX
+
+**Durable Objects location note:** Each room is backed by a Durable Object instantiated in a single data center location. You can influence placement with `locationHint`, but objects don't auto-migrate. This works well for co-op games where players are in the same region. ([Cloudflare DO data location docs](https://developers.cloudflare.com/durable-objects/reference/data-location/))
 
 <CodeWalkthrough title="PartyKit server setup">
 
