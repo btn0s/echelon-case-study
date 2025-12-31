@@ -9,7 +9,6 @@ import { Alert } from '@/components/mdx/alert'
 import { Anchor } from '@/components/mdx/anchor'
 import { PerplexityLink } from '@/components/mdx/perplexity-link'
 import { LatencyDemo } from '@/components/demos/latency-demo'
-import { AuthorityDemo } from '@/components/demos/authority-demo'
 import { PredictionDemo } from '@/components/demos/prediction-demo'
 import { InterpolationDemo } from '@/components/demos/interpolation-demo'
 import type { ComponentProps } from 'react'
@@ -131,7 +130,6 @@ const components = {
   Anchor,
   PerplexityLink,
   LatencyDemo,
-  AuthorityDemo,
   PredictionDemo,
   InterpolationDemo,
 }
