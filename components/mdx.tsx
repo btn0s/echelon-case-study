@@ -11,6 +11,7 @@ import { PerplexityLink } from '@/components/mdx/perplexity-link'
 import { LatencyDemo } from '@/components/demos/latency-demo'
 import { AuthorityDemo } from '@/components/demos/authority-demo'
 import { PredictionDemo } from '@/components/demos/prediction-demo'
+import { InterpolationDemo } from '@/components/demos/interpolation-demo'
 import type { ComponentProps } from 'react'
 
 function CustomLink(props: ComponentProps<'a'>) {
@@ -132,6 +133,7 @@ const components = {
   LatencyDemo,
   AuthorityDemo,
   PredictionDemo,
+  InterpolationDemo,
 }
 
 export function CustomMDX(props: ComponentProps<typeof MDXRemote>) {

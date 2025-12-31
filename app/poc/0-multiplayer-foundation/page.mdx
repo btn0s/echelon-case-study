@@ -241,6 +241,10 @@ The client fills in the gaps. Without interpolation, remote players teleport eve
 
 The key insight: **you predict yourself, you interpolate everyone else.** Your character feels instant. Teammates appear smooth but slightly delayed.
 
+**See the difference** — watch an NPC move on the server (left) vs how a remote client renders it (right). Toggle between snapping and interpolation, adjust update frequency and latency. Without interpolation, movement looks choppy. With interpolation, it's smooth.
+
+<InterpolationDemo />
+
 <AccordionSection title="How Left 4 Dead 2 handles this" value="l4d2">
 
 Left 4 Dead 2's Source engine runs at 30 ticks per second. Clients receive snapshots and interpolate between them. ([Valve Source Multiplayer Networking docs](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)) <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
