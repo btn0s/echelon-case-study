@@ -23,8 +23,22 @@ Multiplayer networking is the foundation that every other system depends on. Get
 
 **Note:** POC 0 uses transform broadcast (clients send position/rotation directly). True input-based prediction with server reconciliation comes in later POCs.
 
----
+## How to Use This Guide
 
+We're going to deep dive on multiplayer networking fundamentals — why latency matters, how client-server architecture works, and the concepts that make responsive multiplayer possible. This context will help you understand *why* we make each implementation choice.
+
+**What's ahead:**
+- Why multiplayer networking is fundamentally hard (latency, authority, consistency)
+- The three main architectural approaches and their tradeoffs  
+- Core concepts: authority, prediction, interpolation
+- Our stack choices and why they fit Echelon
+- Step-by-step implementation with code walkthroughs
+
+The implementation section assumes you understand these concepts, but you can always circle back if something doesn't make sense.
+
+**Want to skip straight to building?** Jump to [Step-by-Step Implementation](#step-by-step-implementation).
+
+<a id="why-multiplayer-is-hard"></a>
 ## Why Multiplayer is Hard
 
 ### The Fundamental Problem: Latency
@@ -39,7 +53,7 @@ For a single-player game, this is irrelevant. For a multiplayer game, it creates
 
 Every multiplayer game in history has had to solve this problem. The solutions are well-documented, but choosing the right approach for your game requires understanding the tradeoffs.
 
-<LearnMore title="The history of multiplayer networking">
+<AccordionSection title="The history of multiplayer networking" value="content">
 
 The techniques we use today were pioneered in the 1990s and refined through decades of iteration. <PerplexityLink query="history of multiplayer game networking quake half-life" />
 
@@ -63,10 +77,9 @@ Valve's Source engine (Half-Life 2, Team Fortress 2, Left 4 Dead) refined these 
 
 Fighting games pioneered rollback netcode (predicting inputs rather than waiting for confirmation). GGPO was first released in late 2006 by Tony Cannon and made open source in October 2019. While overkill for our co-op game, understanding rollback helps appreciate the tradeoff space. <PerplexityLink query="GGPO rollback netcode explained fighting games" />
 
-</LearnMore>
+</AccordionSection>
 
----
-
+<a id="understanding-the-options"></a>
 ## Understanding the Options
 
 There are three fundamental approaches to multiplayer networking. Each makes different tradeoffs between complexity, consistency, and responsiveness. <PerplexityLink query="peer to peer vs client server multiplayer game architecture" />
@@ -146,8 +159,7 @@ Echelon needs consistent state for heat systems, AI guards, and objectives. We c
 
 For development, we'll use a simple WebSocket server. For production, we could use [Hathora](https://hathora.dev/), [Colyseus Cloud](https://colyseus.io/), or self-host. <PerplexityLink query="game server hosting options hathora colyseus 2024" />
 
----
-
+<a id="the-key-concepts"></a>
 ## The Key Concepts
 
 Before we start building, we need to internalize three concepts that will guide every networking decision.
@@ -167,7 +179,7 @@ For responsiveness, the client can *predict* some outcomes locally (while the se
 - Player movement (in POC 0, we update locally and broadcast transforms; true prediction with reconciliation comes in later POCs)
 - Visual effects (cosmetic only)
 
-<Pitfall title="Never trust the client for critical state">
+<Alert title="Never trust the client for critical state">
 
 If the client tells the server "I completed the objective," a cheater can just send that message without actually completing anything. 
 
@@ -181,7 +193,7 @@ The client can show progress UI locally, but the server decides when it's actual
 
 <PerplexityLink query="why never trust the client game security cheating" />
 
-</Pitfall>
+</Alert>
 
 ### Concept 2: Client-Side Prediction
 
@@ -193,9 +205,9 @@ When you press "forward":
 
 The catch: sometimes you'll be wrong. The server might say "actually, you collided with something" or "actually, you were stunned." When that happens, you need to correct smoothly.
 
-**POC 0 note:** This POC uses a simplified approach — local movement updates immediately and we broadcast transforms. True input-based prediction with sequence numbers and server reconciliation is deferred to later POCs (see the Pitfall section below for details).
+**POC 0 note:** This POC uses a simplified approach — local movement updates immediately and we broadcast transforms. True input-based prediction with sequence numbers and server reconciliation is deferred to later POCs (see the Alert section below for details).
 
-<LearnMore title="How prediction actually works">
+<AccordionSection title="How prediction actually works" value="content">
 
 **The input buffer pattern:** <PerplexityLink query="input buffer client prediction server reconciliation" />
 
@@ -225,7 +237,7 @@ localPlayer.position.add(calculateMovement(input))
 - Objective state (server authoritative)
 - Other players' actions (you can't predict them)
 
-</LearnMore>
+</AccordionSection>
 
 ### Concept 3: Interpolation and Snapshots
 
@@ -240,7 +252,7 @@ Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
 
 This introduces a small delay (an interpolation buffer, typically 1-2 snapshot periods or ~100ms+) to absorb network jitter and ensure smooth movement. The buffer trades a small amount of latency for visual smoothness.
 
-<IndustryExample game="Left 4 Dead 2" relevance="co-op with AI sync">
+<AccordionSection title="Left 4 Dead 2 (co-op with AI sync)" value="example">
 
 Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay (this tickrate is fixed and cannot be altered without causing server timing issues). Clients receive snapshots and interpolate between them. ([Valve Source Multiplayer Networking docs](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)) <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
 
@@ -250,9 +262,7 @@ For player movement, clients predict their own movement but interpolate other pl
 
 The key insight: **you only predict yourself, you interpolate everyone else.**
 
-</IndustryExample>
-
----
+</AccordionSection>
 
 ## Our Stack
 
@@ -297,8 +307,6 @@ The transport layer for real-time communication. We have options for the server:
 - [Playroom Kit](https://joinplayroom.com/) — Multiplayer React hooks (alternative approach)
 - [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) — Physics, which we'll need to sync in POC 1
 
----
-
 ## What We're Building
 
 This POC is intentionally minimal. We're not building a game — we're building the foundation and validating it works.
@@ -327,9 +335,10 @@ Movement sync is the canary in the coal mine. If we can't make two players see e
 | Latency tolerance | < 150ms feels good | Artificial latency testing |
 | Reconnection | Works within 10s | Disconnect WiFi, reconnect, verify state |
 
----
-
+<a id="step-by-step-implementation"></a>
 ## Step-by-Step Implementation
+
+> **Building without context?** If you skipped ahead, you might want to understand [why multiplayer is hard](#why-multiplayer-is-hard), [the architectural options](#understanding-the-options), and [core concepts](#the-key-concepts) before diving in. But you can always circle back.
 
 ### Step 1: Set Up PartyKit Server
 
@@ -351,7 +360,7 @@ The server is the authoritative source of truth. It maintains game state, valida
 
 **Durable Objects location note:** Each room is backed by a Durable Object instantiated in a single data center location. You can influence placement with `locationHint`, but objects don't auto-migrate. This works well for co-op games where players are in the same region. ([Cloudflare DO data location docs](https://developers.cloudflare.com/durable-objects/reference/data-location/))
 
-<CodeWalkthrough title="PartyKit server setup">
+Create `party/main.ts` and start with the types and interfaces:
 
 ```typescript
 // party/main.ts
@@ -368,14 +377,18 @@ interface Player {
 interface GameState {
   players: Record<string, Player>
 }
+```
 
+Now add the `onConnect` handler — this runs when a player joins:
+
+```typescript
 export default {
-  // Called when a new player connects
   async onConnect(connection: PartyConnection, room) {
+    // Load existing state or create new
     const state =
       (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
     
-    // Add new player
+    // Create new player at spawn point
     const player: Player = {
       id: connection.id,
       position: { x: 0, y: 0.5, z: 0 },
@@ -383,33 +396,35 @@ export default {
     }
     state.players[connection.id] = player
     
-    // Send current state to the new player
+    // Send current game state to the new player
     connection.send(JSON.stringify({
       type: "init",
       playerId: connection.id,
       players: Object.values(state.players),
     }))
     
-    // Broadcast new player to everyone else
+    // Tell everyone else about the new player
     room.broadcast(JSON.stringify({
       type: "player-joined",
       player,
-    }), [connection.id])
+    }), [connection.id]) // Exclude the new player from this broadcast
     
     await room.storage.put("state", state)
   },
-  
-  // Called when player sends a message (e.g., movement input)
+```
+
+Add the `onMessage` handler for movement updates:
+
+```typescript
   async onMessage(message: string, connection: PartyConnection, room) {
     const data = JSON.parse(message)
     const state =
       (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
     
     if (data.type === "move") {
-      // Server validates and updates authoritative position
       const player = state.players[connection.id]
       if (player) {
-        // In a real game, we'd validate this movement
+        // Update authoritative position (no validation in POC 0)
         state.players[connection.id] = {
           ...player,
           position: data.position,
@@ -428,8 +443,11 @@ export default {
     
     await room.storage.put("state", state)
   },
-  
-  // Called when player disconnects
+```
+
+Finally, add the `onClose` handler for disconnections:
+
+```typescript
   async onClose(connection: PartyConnection, room) {
     const state =
       (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
@@ -445,21 +463,15 @@ export default {
 } satisfies PartyKitServer
 ```
 
-**Key points:**
-- Server owns the `GameState` — it's the source of truth
-- On connect: initialize player, send current state, broadcast to others
-- On message: validate input, update state, broadcast changes
-- On disconnect: clean up player, notify others
+The server is now the authoritative source of truth — it owns `GameState`, validates actions, and broadcasts updates to all clients.
 
-</CodeWalkthrough>
-
-<Pitfall title="POC simplification: we're sending transforms, not inputs">
+<Alert title="POC simplification: we're sending transforms, not inputs">
 
 For POC 0, clients send their **position/rotation** ("state sync") because it's the fastest way to validate connectivity + interpolation. This is not secure and it won't hold up for authoritative physics.
 
 In later POCs, we'll send **inputs + sequence numbers** and reconcile client prediction against the server's simulation.
 
-</Pitfall>
+</Alert>
 
 ### Step 2: Client Connection Hook
 
@@ -476,7 +488,7 @@ This hook encapsulates all the networking logic on the client side. It handles c
 **State management approach:**
 We're using React's `useState` with a `Map` for players. This gives us O(1) lookups by player ID, avoiding O(n) array searches when we have many players. The state updates immutably — we create new Maps on each update to trigger React re-renders.
 
-<CodeWalkthrough title="useMultiplayer hook">
+Create `hooks/useMultiplayer.ts` with types and initial state:
 
 ```typescript
 // hooks/useMultiplayer.ts
@@ -501,7 +513,11 @@ export function useMultiplayer(roomId: string) {
     playerId: null,
     players: new Map(),
   })
-  
+```
+
+Set up the WebSocket connection with lifecycle handlers:
+
+```typescript
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
     room: roomId,
@@ -509,7 +525,11 @@ export function useMultiplayer(roomId: string) {
     onOpen() {
       setState(prev => ({ ...prev, connected: true }))
     },
-    
+```
+
+Handle incoming messages — start with the `init` message:
+
+```typescript
     onMessage(event) {
       const data = JSON.parse(event.data)
       
@@ -521,7 +541,11 @@ export function useMultiplayer(roomId: string) {
             players: new Map(data.players.map((p: Player) => [p.id, p])),
           }))
           break
-          
+```
+
+Add handlers for player join/leave:
+
+```typescript
         case "player-joined":
           setState(prev => {
             const players = new Map(prev.players)
@@ -530,6 +554,18 @@ export function useMultiplayer(roomId: string) {
           })
           break
           
+        case "player-left":
+          setState(prev => {
+            const players = new Map(prev.players)
+            players.delete(data.playerId)
+            return { ...prev, players }
+          })
+          break
+```
+
+Handle movement updates:
+
+```typescript
         case "player-moved":
           setState(prev => {
             const players = new Map(prev.players)
@@ -544,17 +580,13 @@ export function useMultiplayer(roomId: string) {
             return { ...prev, players }
           })
           break
-          
-        case "player-left":
-          setState(prev => {
-            const players = new Map(prev.players)
-            players.delete(data.playerId)
-            return { ...prev, players }
-          })
-          break
       }
     },
-    
+```
+
+Add disconnect handler and return the API:
+
+```typescript
     onClose() {
       setState(prev => ({ ...prev, connected: false }))
     },
@@ -568,19 +600,7 @@ export function useMultiplayer(roomId: string) {
 }
 ```
 
-**Key points:**
-- `usePartySocket` handles connection lifecycle
-- State updates on each message type
-- `sendMove` is how we tell the server we moved
-
-**Message handling:**
-Each message type has a specific handler. The `init` message sets up the initial state when we first connect. `player-joined` and `player-left` handle the player list. `player-moved` updates remote player positions.
-
-Notice that in the `player-moved` handler we replace the player object (immutable update) rather than mutating it in place. This avoids subtle stale-reference bugs and makes it easier to reason about updates.
-
-The `sendMove` function is intentionally simple — it just serializes and sends. The actual movement logic happens in the `LocalPlayer` component, which calls this function after predicting movement locally.
-
-</CodeWalkthrough>
+The hook encapsulates all networking logic and provides a clean API: connection state, player list, and a function to send movement updates.
 
 ### Step 3: Game Scene with Player Rendering
 
@@ -594,7 +614,7 @@ We're using a simple scene with ambient and directional lighting, a ground plane
 **Player rendering logic:**
 The component maps over all players and conditionally renders either `LocalPlayer` or `RemotePlayer` based on whether the player ID matches the current client's ID. This is the critical split: your own player gets prediction, everyone else gets interpolation.
 
-<CodeWalkthrough title="Multiplayer scene">
+Create `components/MultiplayerScene.tsx`:
 
 ```tsx
 // components/MultiplayerScene.tsx
@@ -610,19 +630,25 @@ export function MultiplayerScene({ roomId }: { roomId: string }) {
   if (!connected) {
     return <div>Connecting...</div>
   }
-  
+```
+
+Set up the 3D scene with lighting and ground:
+
+```tsx
   return (
     <Canvas camera={{ position: [0, 10, 10] }}>
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} />
       
-      {/* Ground plane */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
         <planeGeometry args={[20, 20]} />
         <meshStandardMaterial color="#333" />
       </mesh>
-      
-      {/* Render all players */}
+```
+
+Render players — split local vs remote:
+
+```tsx
       {Array.from(players.values()).map(player => (
         player.id === playerId ? (
           <LocalPlayer 
@@ -644,22 +670,13 @@ export function MultiplayerScene({ roomId }: { roomId: string }) {
 }
 ```
 
-**Key distinction:**
-- `LocalPlayer` handles input and prediction (you control it)
-- `RemotePlayer` interpolates from network updates (you observe it)
-
-**Why separate components:**
-This separation is fundamental to responsive multiplayer. Your own character needs immediate feedback (prediction), while other players need smooth interpolation between network updates. Trying to handle both in one component would create complexity and performance issues.
-
-The `sendMove` callback connects the local player's movement to the network layer. When the local player moves, it calls `sendMove`, which sends the update to the server. The server then broadcasts it to all other clients, who update their `RemotePlayer` components.
-
-</CodeWalkthrough>
+**Key distinction:** `LocalPlayer` handles input and prediction (you control it), while `RemotePlayer` interpolates from network updates (you observe it). This separation is fundamental — your character needs immediate feedback, while others need smooth interpolation.
 
 ### Step 4: Local Player with Prediction
 
 The local player predicts movement immediately, then sends to server. <PerplexityLink query="client side prediction implementation javascript" />
 
-<CodeWalkthrough title="LocalPlayer with client-side prediction">
+Create `components/LocalPlayer.tsx` with setup:
 
 ```tsx
 // components/LocalPlayer.tsx
@@ -682,10 +699,12 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
   ))
   const lastSentRef = useRef(0)
   
-  // Keyboard input (WASD)
-  // Requires a <KeyboardControls /> provider configured with forward/backward/left/right
   const [, getKeys] = useKeyboardControls()
-  
+```
+
+Add movement logic in `useFrame`:
+
+```tsx
   useFrame((_, delta) => {
     if (!meshRef.current) return
     
@@ -703,9 +722,13 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
       movement.normalize().multiplyScalar(speed * delta)
       positionRef.current.add(movement)
       
-      // Update mesh position (immediate prediction)
+      // Update mesh immediately (prediction)
       meshRef.current.position.copy(positionRef.current)
-      
+```
+
+Throttle network updates to ~20Hz:
+
+```tsx
       // Send to server at ~20Hz (not every frame)
       const now = Date.now()
       if (now - lastSentRef.current > 50) {
@@ -717,7 +740,11 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
       }
     }
   })
-  
+```
+
+Render the mesh:
+
+```tsx
   return (
     <mesh ref={meshRef} position={[initialPosition.x, 0.5, initialPosition.z]}>
       <boxGeometry args={[1, 1, 1]} />
@@ -727,25 +754,13 @@ export function LocalPlayer({ initialPosition, onMove }: LocalPlayerProps) {
 }
 ```
 
-**Key patterns:**
-- Movement updates immediately (prediction)
-- Network updates throttled to ~20Hz
-- Position stored in ref to avoid re-renders
-
-**Implementation details:**
-We use `useRef` for position storage because `useFrame` runs every frame and we don't want to trigger React re-renders. The ref stores a Three.js `Vector3` which we mutate directly. The mesh position is updated by copying from the ref each frame.
-
-The movement calculation normalizes the direction vector before applying speed. This ensures consistent movement speed regardless of diagonal movement. Without normalization, moving diagonally would be faster than moving in a single direction.
-
-The 50ms throttle (20Hz) is a balance between responsiveness and bandwidth. In a real game, you might adjust this based on network conditions or game type. Fast-paced shooters might need 30-60Hz, while slower games might be fine with 10-15Hz.
-
-</CodeWalkthrough>
+**Key patterns:** Movement updates immediately (prediction), network updates throttled to ~20Hz, position stored in ref to avoid re-renders. We normalize the direction vector to ensure consistent speed regardless of diagonal movement.
 
 ### Step 5: Remote Player with Interpolation
 
 Remote players interpolate smoothly between network updates. <PerplexityLink query="lerp interpolation smooth movement game networking" />
 
-<CodeWalkthrough title="RemotePlayer with interpolation">
+Create `components/RemotePlayer.tsx`:
 
 ```tsx
 // components/RemotePlayer.tsx
@@ -766,7 +781,11 @@ export function RemotePlayer({ player }: { player: Player }) {
     0.5,
     player.position.z
   ))
-  
+```
+
+Update target position when network updates arrive:
+
+```tsx
   // Update target when we receive network updates
   useEffect(() => {
     targetPosition.current.set(
@@ -775,15 +794,23 @@ export function RemotePlayer({ player }: { player: Player }) {
       player.position.z
     )
   }, [player.position])
-  
+```
+
+Interpolate smoothly each frame:
+
+```tsx
   // Smoothly interpolate toward target
   useFrame((_, delta) => {
     if (!meshRef.current) return
     
-    // Lerp toward target position (smoothing factor)
+    // Lerp toward target position (~100ms smoothing)
     meshRef.current.position.lerp(targetPosition.current, Math.min(1, delta * 10))
   })
-  
+```
+
+Render the mesh:
+
+```tsx
   return (
     <mesh ref={meshRef} position={[player.position.x, 0.5, player.position.z]}>
       <boxGeometry args={[1, 1, 1]} />
@@ -793,19 +820,7 @@ export function RemotePlayer({ player }: { player: Player }) {
 }
 ```
 
-**Key patterns:**
-- Target position updates from network
-- Current position lerps toward target each frame
-- `delta * 10` gives ~100ms smoothing
-
-**Implementation details:**
-The `useEffect` updates the target position whenever we receive a new network update. The `useFrame` hook then smoothly interpolates the current position toward the target every frame. This creates continuous movement even though we only receive updates every 50ms.
-
-The smoothing factor (`delta * 10`) is tunable. Higher values (like `delta * 20`) make movement snappier but can look jittery. Lower values (like `delta * 5`) are smoother but feel laggy. The `~100ms` target is a good default — it's fast enough to feel responsive but slow enough to smooth out network jitter.
-
-In a production game, you might want to add extrapolation (predicting where the player is going) or adjust the smoothing factor based on network conditions. For this POC, simple interpolation is sufficient to validate the networking foundation.
-
-</CodeWalkthrough>
+**Key patterns:** Target position updates from network, current position lerps toward target each frame. The `delta * 10` smoothing factor (~100ms) balances responsiveness with jitter reduction. Higher values are snappier but jittery; lower values are smoother but laggy.
 
 ---
 
@@ -825,8 +840,6 @@ These answers will inform every subsequent POC:
 - **POC 3 (AI):** Can we sync guard positions at acceptable bandwidth?
 - **POC 4 (Objectives):** How do we handle objective interaction timing?
 
----
-
 ## Instrumentation
 
 We need to measure what matters: <PerplexityLink query="measuring network latency jitter multiplayer games" />
@@ -845,8 +858,6 @@ interface NetworkMetrics {
 
 We'll add a debug overlay showing these metrics in real-time, and log aggregated data for analysis.
 
----
-
 ## Open Questions
 
 Things we'll discover during implementation:
@@ -856,8 +867,6 @@ Things we'll discover during implementation:
 - What's the right smoothing factor for interpolation?
 - Should we add extrapolation (predicting where remote players are going)? <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
 - How do we visualize connection quality to players?
-
----
 
 ## Next Steps
 

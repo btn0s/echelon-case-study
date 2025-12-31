@@ -1,18 +1,18 @@
 "use client";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert as UIAlert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { TriangleAlert } from "lucide-react";
 
-interface PitfallProps {
+interface AlertProps {
   title: string;
   children: React.ReactNode;
   className?: string;
 }
 
-export function Pitfall({ title, children, className }: PitfallProps) {
+export function Alert({ title, children, className }: AlertProps) {
   return (
-    <Alert
+    <UIAlert
       className={cn(
         "my-4 p-4 text-sm bg-destructive/10 border-destructive/20",
         className
@@ -26,6 +26,6 @@ export function Pitfall({ title, children, className }: PitfallProps) {
       <AlertDescription className="mt-1 [&_p]:mb-2 [&_p:last-child]:mb-0">
         {children}
       </AlertDescription>
-    </Alert>
+    </UIAlert>
   );
 }
