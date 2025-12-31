@@ -9,8 +9,6 @@ import { Alert } from '@/components/mdx/alert'
 import { Anchor } from '@/components/mdx/anchor'
 import { PerplexityLink } from '@/components/mdx/perplexity-link'
 import { LatencyDemo } from '@/components/demos/latency-demo'
-import { SnapshotInterpolationDemo } from '@/components/demos/snapshot-interpolation-demo'
-import { ReconciliationDemo } from '@/components/demos/reconciliation-demo'
 import { AuthorityDemo } from '@/components/demos/authority-demo'
 import type { ComponentProps } from 'react'
 
@@ -131,8 +129,6 @@ const components = {
   Anchor,
   PerplexityLink,
   LatencyDemo,
-  SnapshotInterpolationDemo,
-  ReconciliationDemo,
   AuthorityDemo,
 }
 
