@@ -17,11 +17,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Echelon Case Study",
+    default: "Echelon: A Game Design Case Study",
     template: "%s | Echelon Case Study",
   },
   description:
-    "Building a co-op heist game by designing the post-mortem first. A case study in AI-assisted game development.",
+    "Nine prototypes, one game. A case study in breaking down a complex multiplayer game into answerable design questions.",
   keywords: [
     "game development",
     "case study",
@@ -36,15 +36,15 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Echelon Case Study",
-    title: "Echelon Case Study",
+    title: "Echelon: A Game Design Case Study",
     description:
-      "Building a co-op heist game by designing the post-mortem first. A case study in AI-assisted game development.",
+      "Nine prototypes. One game. Breaking down a complex design problem into answerable questions.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Echelon Case Study",
+    title: "Echelon: A Game Design Case Study",
     description:
-      "Building a co-op heist game by designing the post-mortem first. A case study in AI-assisted game development.",
+      "Nine prototypes. One game. Breaking down a complex design problem into answerable questions.",
   },
   robots: {
     index: true,

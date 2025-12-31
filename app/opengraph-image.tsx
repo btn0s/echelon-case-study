@@ -4,7 +4,8 @@ export { size, contentType };
 
 export default async function Image() {
   return generateOGImage({
-    title: "Echelon",
-    description: "Building a co-op heist game by designing the post-mortem first.",
+    label: "Case Study",
+    title: "Echelon: A Game Design Case Study",
+    description: "Nine prototypes. One game. Breaking down a complex design problem into answerable questions.",
   });
 }
