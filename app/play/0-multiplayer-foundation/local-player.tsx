@@ -3,10 +3,12 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-
-type Vec3 = { x: number; y: number; z: number };
-
-type InputState = { w: boolean; a: boolean; s: boolean; d: boolean };
+import type { InputState, Vec3 } from "./movement";
+import {
+  directionFromInput,
+  simulateMovement,
+  clamp,
+} from "./movement";
 
 function isWASDKey(key: string) {
   const k = key.toLowerCase();
@@ -19,25 +21,18 @@ function applyKey(input: InputState, key: string, pressed: boolean): InputState 
   return { ...input, [k]: pressed };
 }
 
-function directionFromInput(input: InputState) {
-  const x = (input.d ? 1 : 0) + (input.a ? -1 : 0);
-  const z = (input.s ? 1 : 0) + (input.w ? -1 : 0);
-
-  // Normalize diagonals.
-  if (x !== 0 && z !== 0) return { x: x * 0.707, z: z * 0.707 };
-  return { x, z };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
 export function LocalPlayer({
   initialPosition,
-  onMove,
+  onInput,
+  authoritativeState,
+  lastAckSeq,
+  pendingInputs,
 }: {
   initialPosition: Vec3;
-  onMove: (position: Vec3, rotation: number) => void;
+  onInput: (seq: number, dt: number, keys: InputState) => void;
+  authoritativeState: Vec3 | null;
+  lastAckSeq: number;
+  pendingInputs: Array<{ seq: number; dt: number; keys: InputState }>;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const positionRef = useRef(
@@ -45,7 +40,40 @@ export function LocalPlayer({
   );
   const inputRef = useRef<InputState>({ w: false, a: false, s: false, d: false });
   const lastSentAtRef = useRef(0);
+  const seqRef = useRef(0);
+  const lastReconciledSeqRef = useRef(0);
 
+  // Reconciliation: snap to authoritative state and replay pending inputs
+  useEffect(() => {
+    if (authoritativeState && lastAckSeq !== lastReconciledSeqRef.current) {
+      // Snap to authoritative position
+      let reconciledPos: Vec3 = {
+        x: authoritativeState.x,
+        y: authoritativeState.y,
+        z: authoritativeState.z,
+      };
+
+      // Replay all pending inputs that haven't been acknowledged
+      for (const input of pendingInputs) {
+        if (input.seq > lastAckSeq) {
+          reconciledPos = simulateMovement(reconciledPos, input.keys, input.dt);
+        }
+      }
+
+      positionRef.current.set(
+        reconciledPos.x,
+        reconciledPos.y,
+        reconciledPos.z
+      );
+      if (meshRef.current) {
+        meshRef.current.position.copy(positionRef.current);
+      }
+
+      lastReconciledSeqRef.current = lastAckSeq;
+    }
+  }, [authoritativeState?.x, authoritativeState?.y, authoritativeState?.z, lastAckSeq, pendingInputs]);
+
+  // Reset position on initial spawn
   useEffect(() => {
     positionRef.current.set(initialPosition.x, 0.5, initialPosition.z);
     if (meshRef.current) {
@@ -76,27 +104,29 @@ export function LocalPlayer({
   useFrame((_, delta) => {
     if (!meshRef.current) return;
 
-    const { x, z } = directionFromInput(inputRef.current);
-    if (x === 0 && z === 0) return;
+    // Client-side prediction: simulate movement locally
+    const predictedPosition = simulateMovement(
+      {
+        x: positionRef.current.x,
+        y: positionRef.current.y,
+        z: positionRef.current.z,
+      },
+      inputRef.current,
+      delta
+    );
 
-    const speed = 5; // units/s
-    positionRef.current.x += x * speed * delta;
-    positionRef.current.z += z * speed * delta;
-
-    // Keep the player on the plane so it’s easier to observe.
-    positionRef.current.x = clamp(positionRef.current.x, -9.5, 9.5);
-    positionRef.current.z = clamp(positionRef.current.z, -9.5, 9.5);
-
-    // Prediction: move immediately.
+    positionRef.current.set(
+      predictedPosition.x,
+      predictedPosition.y,
+      predictedPosition.z
+    );
     meshRef.current.position.copy(positionRef.current);
 
-    // Send to server at ~20Hz.
+    // Send inputs to server at ~20Hz
     const now = performance.now();
     if (now - lastSentAtRef.current > 50) {
-      onMove(
-        { x: positionRef.current.x, y: positionRef.current.y, z: positionRef.current.z },
-        meshRef.current.rotation.y
-      );
+      seqRef.current++;
+      onInput(seqRef.current, delta, { ...inputRef.current });
       lastSentAtRef.current = now;
     }
   });
@@ -112,4 +142,3 @@ export function LocalPlayer({
     </mesh>
   );
 }
-

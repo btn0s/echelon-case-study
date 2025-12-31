@@ -2,26 +2,43 @@
 
 import { useCallback, useMemo, useState } from "react";
 import usePartySocket from "partysocket/react";
-
-type Vec3 = { x: number; y: number; z: number };
+import type { InputState, Vec3 } from "./movement";
 
 export interface Player {
   id: string;
   position: Vec3;
   rotation: number;
+  lastProcessedInputSeq?: number; // Only for local player reconciliation
+  snapshotTime?: number; // Server timestamp for interpolation
+}
+
+export interface SnapshotPlayer {
+  id: string;
+  position: Vec3;
+  rotation: number;
+  lastProcessedInputSeq: number;
 }
 
 type MultiplayerState = {
   connected: boolean;
   playerId: string | null;
   players: Map<string, Player>;
+  // Local player reconciliation state
+  pendingInputs: Array<{ seq: number; dt: number; keys: InputState }>;
+  lastAckSeq: number;
+  authoritativeLocalState: Vec3 | null;
 };
 
 type ServerMessage =
   | { type: "init"; playerId: string; players: Player[] }
   | { type: "player-joined"; player: Player }
   | { type: "player-left"; playerId: string }
-  | { type: "player-moved"; playerId: string; position: Vec3; rotation: number };
+  | {
+      type: "snapshot";
+      serverTime: number;
+      tick: number;
+      players: SnapshotPlayer[];
+    };
 
 function safeParseMessage(data: unknown): ServerMessage | null {
   if (typeof data !== "string") return null;
@@ -43,6 +60,9 @@ export function useMultiplayer({
     connected: false,
     playerId: null,
     players: new Map(),
+    pendingInputs: [],
+    lastAckSeq: 0,
+    authoritativeLocalState: null,
   });
 
   const socket = usePartySocket({
@@ -64,6 +84,10 @@ export function useMultiplayer({
             ...prev,
             playerId: parsed.playerId,
             players: new Map(parsed.players.map((p) => [p.id, p])),
+            // Reset reconciliation state on reconnect
+            pendingInputs: [],
+            lastAckSeq: 0,
+            authoritativeLocalState: null,
           }));
           return;
         }
@@ -86,16 +110,45 @@ export function useMultiplayer({
           return;
         }
 
-        case "player-moved": {
+        case "snapshot": {
           setState((prev) => {
             const players = new Map(prev.players);
-            const existing = players.get(parsed.playerId);
-            if (!existing) return { ...prev, players };
-            players.set(parsed.playerId, {
-              ...existing,
-              position: parsed.position,
-              rotation: parsed.rotation,
-            });
+            const localPlayerSnapshot = parsed.players.find(
+              (p) => p.id === prev.playerId
+            );
+
+            // Update all players from snapshot
+            for (const snapshotPlayer of parsed.players) {
+              players.set(snapshotPlayer.id, {
+                id: snapshotPlayer.id,
+                position: snapshotPlayer.position,
+                rotation: snapshotPlayer.rotation,
+                lastProcessedInputSeq:
+                  snapshotPlayer.id === prev.playerId
+                    ? snapshotPlayer.lastProcessedInputSeq
+                    : undefined,
+                snapshotTime: parsed.serverTime,
+              });
+            }
+
+            // Reconciliation for local player
+            if (localPlayerSnapshot && prev.playerId) {
+              const newAckSeq = localPlayerSnapshot.lastProcessedInputSeq;
+
+              // Drop acknowledged inputs
+              const remainingInputs = prev.pendingInputs.filter(
+                (input) => input.seq > newAckSeq
+              );
+
+              return {
+                ...prev,
+                players,
+                lastAckSeq: newAckSeq,
+                authoritativeLocalState: localPlayerSnapshot.position,
+                pendingInputs: remainingInputs,
+              };
+            }
+
             return { ...prev, players };
           });
           return;
@@ -104,10 +157,16 @@ export function useMultiplayer({
     },
   });
 
-  const sendMove = useCallback(
-    (position: Vec3, rotation: number) => {
+  const sendInput = useCallback(
+    (seq: number, dt: number, keys: InputState) => {
       if (socket.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify({ type: "move", position, rotation }));
+      socket.send(JSON.stringify({ type: "input", seq, dt, keys }));
+
+      // Track pending input
+      setState((prev) => ({
+        ...prev,
+        pendingInputs: [...prev.pendingInputs, { seq, dt, keys }],
+      }));
     },
     [socket]
   );
@@ -117,6 +176,9 @@ export function useMultiplayer({
     [state.players]
   );
 
-  return { ...state, playersArray, sendMove };
+  return {
+    ...state,
+    playersArray,
+    sendInput,
+  };
 }
-

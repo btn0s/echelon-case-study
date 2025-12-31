@@ -283,9 +283,9 @@ Every client-server multiplayer game has four pieces:
 **The data flow:**
 
 1. Player presses forward → local controller moves immediately (prediction)
-2. Client sends position update to server
-3. Server updates authoritative state, broadcasts to all clients
-4. Other clients receive update → remote renderer interpolates to new position
+2. Client sends an **input message** (keys + sequence number) to the server
+3. Server advances an authoritative simulation on a fixed tick and broadcasts a **snapshot**
+4. Other clients buffer snapshots and interpolate remote players with a small render delay
 
 This maps directly to the concepts from [The Key Concepts](#the-key-concepts):
 - **Authority** → Server owns state. Clients propose, server decides.
@@ -297,9 +297,9 @@ This maps directly to the concepts from [The Key Concepts](#the-key-concepts):
 What we're explicitly **not** building:
 
 - **Physics** — No collisions. Movement is pure translation.
-- **Input-based sync** — Clients send positions, not inputs. Not secure, but fastest to validate.
-- **Server reconciliation** — No correction when server disagrees. Comes in later POCs.
-- **Interpolation buffer** — Direct lerp to latest position, no snapshot buffering.
+- **Lag compensation** — Server doesn't rewind time for hit detection. Not needed for movement-only POC.
+- **Delta compression** — Full snapshots every tick. Works for 2-4 players, won't scale beyond that.
+- **Extrapolation** — No dead reckoning for late packets. High latency causes visible hitches.
 
 These are intentional simplifications. Each defers complexity to validate the core: can two players see each other moving smoothly?
 
@@ -355,6 +355,24 @@ Not Socket.io. Not Colyseus. Not Hathora. PartyKit because it's fastest to valid
 ## Step-by-Step Implementation
 
 Now let's build it.
+
+<Alert title="Runnable implementation (what this repo actually ships)">
+
+The code snippets below teach the ideas in small steps, but the runnable POC is the “final form”:
+
+- **Server** runs a fixed 20Hz tick via PartyKit **alarms** (`room.storage.setAlarm` + `onAlarm`) and broadcasts **snapshots**.
+- **Client → server** sends **inputs** (`{ type: \"input\", seq, dt, keys }`), not transforms.
+- **Client prediction** moves immediately.
+- **Server reconciliation** snaps to the authoritative snapshot, then replays un-acked inputs.
+- **Remote interpolation** uses a small snapshot buffer and renders ~100ms behind.
+
+Code pointers:
+- `party/main.ts`
+- `app/play/0-multiplayer-foundation/use-multiplayer.ts`
+- `app/play/0-multiplayer-foundation/local-player.tsx`
+- `app/play/0-multiplayer-foundation/remote-player.tsx`
+
+</Alert>
 
 ### Step 1: Set Up PartyKit Server
 
@@ -432,7 +450,7 @@ export default {
   },
 ```
 
-Add the `onMessage` handler for movement updates:
+Add the `onMessage` handler for **input** updates:
 
 ```typescript
   async onMessage(message: string, connection: PartyConnection, room) {
@@ -440,28 +458,49 @@ Add the `onMessage` handler for movement updates:
     const state =
       (await room.storage.get<GameState>("state")) ?? ({ players: {} } satisfies GameState)
     
-    if (data.type === "move") {
+    if (data.type === "input") {
       const player = state.players[connection.id]
       if (player) {
-        // Update authoritative position (no validation in POC 0 — deferred to later POCs)
-        state.players[connection.id] = {
-          ...player,
-          position: data.position,
-          rotation: data.rotation,
-        }
-        
-        // Broadcast to all clients
-        room.broadcast(JSON.stringify({
-          type: "player-moved",
-          playerId: connection.id,
-          position: data.position,
-          rotation: data.rotation,
-        }))
+        // Server stores the latest input. The actual movement happens on the fixed tick.
+        player.currentInput = data.keys
+        player.lastProcessedInputSeq = Math.max(player.lastProcessedInputSeq, data.seq)
       }
     }
     
     await room.storage.put("state", state)
   },
+```
+
+Add a fixed tick via **PartyKit alarms** (this is the reliable way to schedule recurring work in PartyKit):
+
+```typescript
+const TICK_RATE_MS = 50 // 20Hz
+
+async function ensureTickScheduled(room) {
+  const existing = await room.storage.getAlarm()
+  const next = Date.now() + TICK_RATE_MS
+  if (existing === null || existing > next + 5) {
+    await room.storage.setAlarm(next)
+  }
+}
+
+export default {
+  async onConnect(connection, room) {
+    // ...spawn player, send init...
+    await ensureTickScheduled(room)
+  },
+
+  async onAlarm(room) {
+    const state = (await room.storage.get("state")) ?? { players: {}, tick: 0 }
+    if (Object.keys(state.players).length === 0) return
+
+    // Advance authoritative sim at fixed dt, then broadcast a snapshot.
+    // (In this repo, we broadcast { type: "snapshot", tick, serverTime, players: [...] }.)
+
+    await room.storage.put("state", state)
+    await room.storage.setAlarm(Date.now() + TICK_RATE_MS)
+  },
+}
 ```
 
 Finally, add the `onClose` handler for disconnections:
@@ -484,11 +523,11 @@ Finally, add the `onClose` handler for disconnections:
 
 The server is now the authoritative source of truth — it owns `GameState`, validates actions, and broadcasts updates to all clients.
 
-<Alert title="POC simplification: we're sending transforms, not inputs">
+<Alert title="POC 0 implementation: input-based sync with server reconciliation">
 
-For POC 0, clients send their **position/rotation** ("state sync") because it's the fastest way to validate connectivity + interpolation. This is not secure and it won't hold up for authoritative physics.
+The runnable POC implements **input-based sync** — clients send inputs (WASD keys) with sequence numbers, and the server runs an authoritative simulation at 20Hz. Clients predict locally and reconcile when server snapshots arrive.
 
-In later POCs, we'll send **inputs + sequence numbers** and reconcile client prediction against the server's simulation.
+This is still a basic implementation: no collisions, no lag compensation, no client-side smoothing on correction beyond simple snap/lerp. But it demonstrates the core techniques: server authority, client-side prediction, and server reconciliation.
 
 </Alert>
 
@@ -623,20 +662,17 @@ Add handlers for player join/leave:
           break
 ```
 
-Handle movement updates:
+Handle snapshots:
 
 ```typescript
-        case "player-moved":
+        case "snapshot":
           setState(prev => {
             const players = new Map(prev.players)
-            const previous = players.get(data.playerId)
-            if (!previous) return { ...prev, players }
 
-            players.set(data.playerId, {
-              ...previous,
-              position: data.position,
-              rotation: data.rotation,
-            })
+            for (const p of data.players) {
+              players.set(p.id, { id: p.id, position: p.position, rotation: p.rotation })
+            }
+
             return { ...prev, players }
           })
           break
@@ -652,11 +688,11 @@ Add disconnect handler and return the API:
     },
   })
   
-  const sendMove = (position: { x: number; y: number; z: number }, rotation: number) => {
-    socket.send(JSON.stringify({ type: "move", position, rotation }))
+  const sendInput = (seq: number, dt: number, keys: { w: boolean; a: boolean; s: boolean; d: boolean }) => {
+    socket.send(JSON.stringify({ type: "input", seq, dt, keys }))
   }
   
-  return { ...state, sendMove }
+  return { ...state, sendInput }
 }
 ```
 
@@ -688,7 +724,7 @@ import { LocalPlayer } from "./LocalPlayer"
 import { RemotePlayer } from "./RemotePlayer"
 
 export function MultiplayerScene({ roomId }: { roomId: string }) {
-  const { connected, playerId, players, sendMove } = useMultiplayer(roomId)
+  const { connected, playerId, players, sendInput } = useMultiplayer(roomId)
   
   if (!connected) {
     return <div>Connecting...</div>
@@ -717,7 +753,7 @@ Render players — split local vs remote:
           <LocalPlayer 
             key={player.id}
             initialPosition={player.position}
-            onMove={sendMove}
+            onInput={sendInput}
           />
         ) : (
           <RemotePlayer
@@ -902,7 +938,11 @@ The `delta * 10` smoothing factor (~100ms) balances responsiveness with jitter r
 We chose 10 as a starting point. We can tune based on testing.
 
 **What was left rough:**
-No interpolation buffer. We lerp directly to the latest position. A proper buffer would store multiple snapshots and interpolate between them, smoothing network jitter better. Deferred to later POCs.
+We do keep a small snapshot buffer and interpolate (rendering slightly “in the past”).
+
+What’s still left rough:
+- No server↔client clock sync (we buffer using local arrival time, which is fine for a POC but not fully “textbook”).
+- No extrapolation when packets arrive late.
 
 ---
 
@@ -912,9 +952,9 @@ After building and testing this minimal multiplayer foundation, we discovered:
 
 1. **Latency tolerance:** Below 100ms RTT feels instant. Above 200ms requires aggressive prediction. At 150ms, slight delay is acceptable.
 2. **Update frequency:** 20Hz is sufficient for movement sync. Higher frequencies (30-60Hz) improve smoothness but increase bandwidth. For this POC, 20Hz works.
-3. **Interpolation quality:** Lerp factor 10 balances smoothness and responsiveness. Factor 5 feels laggy. Factor 20 jitters. Factor 10 works well for 20Hz updates.
-4. **Connection handling:** PartyKit handles disconnects cleanly. Reconnection works within 2-3 seconds. State persists across reconnects via `room.storage`.
-5. **State recovery:** Players can rejoin seamlessly. Server sends full state on connect. No state loss during reconnection.
+3. **Interpolation quality:** A small snapshot buffer + ~100ms render delay removes most “20Hz stepping” without making teammates feel mushy. When jitter increases, increasing the delay to ~150ms is often a better lever than cranking lerp factors.
+4. **Server tick reliability:** PartyKit wants recurring work scheduled via `room.storage.setAlarm()` + `onAlarm`. `setInterval` is not the right foundation for a room tick.
+5. **State recovery:** PartyKit storage persists across reconnects *and* code evolution. We had to add a tiny state migration so older stored player shapes wouldn’t crash the tick loop.
 
 These learnings inform every subsequent POC:
 - **POC 1 (Destruction):** Physics events need reliable sync. Can we use the same 20Hz pattern? <PerplexityLink query="syncing physics destruction multiplayer games" />
@@ -945,10 +985,9 @@ We'll add a debug overlay showing these metrics in real-time, log aggregated dat
 What we deferred and why:
 
 - **Delta compression:** Sending only what changed cuts bandwidth dramatically at scale. We send full snapshots every time — works for 2-4 players, won't scale beyond that. <PerplexityLink query="delta compression vs full snapshots game networking" />
-- **Interpolation buffer:** Buffering 2-3 snapshots smooths network jitter so remote players don't stutter. We lerp directly to the latest position — simpler, but more sensitive to jitter. <PerplexityLink query="snapshot interpolation buffer multiplayer games" />
 - **Extrapolation:** Predicting where remote players are heading hides latency when packets arrive late. We don't extrapolate, so high latency or packet loss causes visible hitches. <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
 - **Network diagnostics:** RTT, packet loss, tick rate — essential for debugging. We have no overlay yet, so diagnosing network issues means reading logs. <PerplexityLink query="network debug overlay multiplayer games" />
-- **Input-based prediction:** Sending inputs (not positions) lets the server simulate authoritatively — prevents cheating, enables correction. We send positions directly, which is faster to build but not secure. <PerplexityLink query="client side prediction server reconciliation multiplayer" />
+- **Lag compensation:** Server doesn't rewind time for hit detection. Not needed for movement-only POC, but essential for combat or interaction systems.
 
 
 ## What's Next
@@ -958,9 +997,9 @@ This POC is complete. The foundation works — two players move smoothly in a sh
 Up next, we use this foundation to answer the next question: **[POC 1: Destruction + Multiplayer Sync](/poc/1-destruction-multiplayer)** — can we sync physics events reliably at 20Hz?
 
 **Stretch goals** (if you want to push this POC further):
-- Add an interpolation buffer to smooth network jitter
-- Build a debug overlay showing RTT, jitter, and update rate
+- Build a debug overlay showing RTT, jitter, tick rate, and pending input count
 - Test with artificial latency (Chrome DevTools throttling) to find breaking points
+- Add extrapolation for remote players to handle late packets gracefully
 
 ## Resources
 

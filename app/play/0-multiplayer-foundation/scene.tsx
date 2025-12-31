@@ -10,12 +10,18 @@ export function MultiplayerScene({
   connected,
   playerId,
   players,
-  sendMove,
+  sendInput,
+  authoritativeLocalState,
+  lastAckSeq,
+  pendingInputs,
 }: {
   connected: boolean;
   playerId: string | null;
   players: Player[];
-  sendMove: (position: { x: number; y: number; z: number }, rotation: number) => void;
+  sendInput: (seq: number, dt: number, keys: { w: boolean; a: boolean; s: boolean; d: boolean }) => void;
+  authoritativeLocalState: { x: number; y: number; z: number } | null;
+  lastAckSeq: number;
+  pendingInputs: Array<{ seq: number; dt: number; keys: { w: boolean; a: boolean; s: boolean; d: boolean } }>;
 }) {
   if (!connected) {
     return (
@@ -40,7 +46,10 @@ export function MultiplayerScene({
           <LocalPlayer
             key={player.id}
             initialPosition={player.position}
-            onMove={sendMove}
+            onInput={sendInput}
+            authoritativeState={authoritativeLocalState}
+            lastAckSeq={lastAckSeq}
+            pendingInputs={pendingInputs}
           />
         ) : (
           <RemotePlayer key={player.id} player={player} />

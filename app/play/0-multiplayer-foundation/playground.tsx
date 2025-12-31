@@ -18,7 +18,7 @@ export function MultiplayerFoundationPlayground() {
   const [roomId, setRoomId] = useState(DEFAULT_ROOM);
   const [appliedRoomId, setAppliedRoomId] = useState(DEFAULT_ROOM);
 
-  const { connected, playerId, playersArray, sendMove } = useMultiplayer({
+  const { connected, playerId, playersArray, sendInput, authoritativeLocalState, lastAckSeq, pendingInputs } = useMultiplayer({
     host,
     roomId: appliedRoomId,
   });
@@ -81,7 +81,10 @@ export function MultiplayerFoundationPlayground() {
             connected={connected}
             playerId={playerId}
             players={playersArray}
-            sendMove={sendMove}
+            sendInput={sendInput}
+            authoritativeLocalState={authoritativeLocalState}
+            lastAckSeq={lastAckSeq}
+            pendingInputs={pendingInputs}
           />
         </div>
       </div>
