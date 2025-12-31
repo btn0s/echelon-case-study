@@ -7,51 +7,49 @@ export const metadata = {
 
 ## The Problem We're Solving
 
-Before we can build destructible walls, heat systems, or Super encounters, we need two players to exist in the same world.
+Multiplayer networking is the foundation everything else depends on. Before destructible walls, heat systems, or Super encounters, we need two players in the same world, moving smoothly.
 
-Multiplayer networking is the foundation that every other system depends on. Get it wrong, and players see different worlds. Get it really wrong, and the game feels unplayable — laggy, inconsistent, frustrating. This POC establishes the networking layer that POCs 1-7 will build upon.
+The core challenge: when you press a key, that input travels to a server and back. Even at light speed, this takes time — typically 20-150 milliseconds depending on distance. Wait for server confirmation, and movement feels sluggish. Show movement immediately, and we might be wrong about where you are. Every multiplayer game solves this tension between responsiveness and accuracy.
 
-**What we're validating:** Can we build reliable multiplayer sync that feels responsive for cooperative gameplay?
-
-**TL;DR**
-- **Architecture:** Dedicated client-server (server authoritative)
-- **Prototype stack:** PartyKit (server) + WebSockets + React Three Fiber (rendering)
-- **Movement model:** local movement updates immediately, remote players interpolate between network snapshots
-- **Network target:** send movement ~20Hz, render at frame rate
-- **Done when:** two clients can connect/reconnect and see each other move smoothly under ~150ms RTT
-- **Out of scope (for this POC):** input sequencing/reconciliation, anti-cheat, authoritative physics sync
-
-**Note:** POC 0 uses transform broadcast (clients send position/rotation directly). True input-based prediction with server reconciliation comes in later POCs.
+This POC explores how to build reliable multiplayer sync for cooperative gameplay — the architectural choices, core concepts, and implementation patterns that make two players moving smoothly in the same world possible.
 
 ## How to Use This Guide
 
-We're going to deep dive on multiplayer networking fundamentals — why latency matters, how client-server architecture works, and the concepts that make responsive multiplayer possible. This context will help you understand *why* we make each implementation choice.
+We'll explore multiplayer networking fundamentals — why latency matters, how client-server architecture works, the concepts that make responsive multiplayer possible. This context explains *why* we make each implementation choice.
 
 **What's ahead:**
-- Why multiplayer networking is fundamentally hard (latency, authority, consistency)
-- The three main architectural approaches and their tradeoffs  
+- Why multiplayer networking is hard (latency, authority, consistency)
+- Three architectural approaches and their tradeoffs  
 - Core concepts: authority, prediction, interpolation
-- Our stack choices and why they fit Echelon
+- Stack choices and why they fit Echelon
 - Step-by-step implementation with code walkthroughs
 
-The implementation section assumes you understand these concepts, but you can always circle back if something doesn't make sense.
-
-**Want to skip straight to building?** Jump to [Step-by-Step Implementation](#step-by-step-implementation).
+**Want to skip straight to building?** **Go ahead** → [Step-by-Step Implementation](#step-by-step-implementation).
 
 <a id="why-multiplayer-is-hard"></a>
 ## Why Multiplayer is Hard
 
 ### The Fundamental Problem: Latency
 
-When you press "move forward" on your keyboard, light travels through wires to a server, the server processes your input, and light travels back. Even at the speed of light, this takes time — typically 20-150ms depending on distance. <PerplexityLink query="network latency in multiplayer games explained" />
+Press "move forward" on your keyboard. That input travels through wires to a server. The server processes it, sends a response back. Even at light speed, this round trip takes time — typically 20-150 milliseconds depending on distance. This delay is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
 
-For a single-player game, this is irrelevant. For a multiplayer game, it creates a paradox:
+For single-player, this is irrelevant. For multiplayer, it creates a paradox:
 
-- If you wait for server confirmation before showing movement, the game feels sluggish
-- If you show movement immediately, you might be wrong about where you actually are
-- If two players interact with the same object, who wins?
+- Wait for server confirmation, and movement feels sluggish
+- Show movement immediately, and you might be wrong about where you are
+- Two players interact with the same object — who wins?
 
-Every multiplayer game in history has had to solve this problem. The solutions are well-documented, but choosing the right approach for your game requires understanding the tradeoffs.
+**What this feels like:**
+
+| Latency | Experience |
+|---------|------------|
+| 50ms | Movement feels immediate |
+| Below 100ms | Feels instant |
+| 150ms | Slight delay |
+| 200ms | Requires aggressive techniques; without them, feels like 200ms delay — unplayable |
+| 300ms | Noticeable lag |
+
+Every multiplayer game solves this problem. The solutions are well-documented. Choosing the right approach requires understanding the tradeoffs.
 
 <AccordionSection title="The history of multiplayer networking" value="content">
 
@@ -145,6 +143,8 @@ Player A → Server ← Player B
 
 ### Which approach for Echelon?
 
+Echelon has heat systems, AI guards, and objectives — all need to stay in sync across every connected player. If one player sees 80% heat and another sees 50%, the game breaks.
+
 | Factor | P2P | Host-Auth | Client-Server |
 |--------|-----|-----------|---------------|
 | Fairness | No authority | Host advantage | Equal for all |
@@ -153,114 +153,88 @@ Player A → Server ← Player B
 | Cost | Free | Free | Server costs |
 | Reconnection | Hard | Host migration | Clean reconnect |
 
-**Our choice: Client-Server**
+P2P won't work — no authoritative state means players can disagree, and cheating is trivial. Host-authoritative won't work either — the host has an unfair latency advantage, and if they disconnect, the game ends (or requires complex migration).
 
-Echelon needs consistent state for heat systems, AI guards, and objectives. We can't have players seeing different heat levels or objective states. Client-server gives us the foundation to build authoritative game systems.
-
-For development, we'll use a simple WebSocket server. For production, we could use [Hathora](https://hathora.dev/), [Colyseus Cloud](https://colyseus.io/), or self-host. <PerplexityLink query="game server hosting options hathora colyseus 2024" />
+**That leaves client-server.** Higher complexity, but we get equal fairness, server validation, and clean reconnection.
 
 <a id="the-key-concepts"></a>
 ## The Key Concepts
 
-Before we start building, we need to internalize three concepts that will guide every networking decision.
+Now that we've chosen client-server, there are a few core concepts that make it work — and that will guide every networking decision we make.
 
 ### Concept 1: Authority
 
-**Authority** means "who is the source of truth for this piece of state?" <PerplexityLink query="server authority vs client authority multiplayer games" />
+**Authority** answers: who is the source of truth for this piece of state? <PerplexityLink query="server authority vs client authority multiplayer games" />
 
-For critical game state, the server is authoritative:
-- Heat level (POC 2)
-- Objective completion (POC 4)
-- Guard positions (POC 3)
-- Player health
-- Inventory
+In client-server, the server owns critical game state — health, inventory, objectives, AI positions. If a client says "I completed the objective," the server ignores it. The server decides what's true.
 
-For responsiveness, the client can *predict* some outcomes locally (while the server remains authoritative and can correct):
-- Player movement (in POC 0, we update locally and broadcast transforms; true prediction with reconciliation comes in later POCs)
-- Visual effects (cosmetic only)
+But if the server owns *everything*, movement feels laggy. So we let clients predict some things locally — their own movement, visual effects. The server remains authoritative and can correct, but the client doesn't wait.
 
-<Alert title="Never trust the client for critical state">
+This split is the foundation: **server authoritative for critical state, client predictive for responsiveness.**
 
-If the client tells the server "I completed the objective," a cheater can just send that message without actually completing anything. 
+<AccordionSection title="Why never trust the client" value="trust">
+
+If the client tells the server "I completed the objective," a cheater can just send that message without actually doing anything.
 
 The correct pattern:
 1. Client sends: "I'm interacting with the terminal"
 2. Server validates: Is the player near the terminal? Is the terminal hackable?
-3. Server runs the interaction: 10-second timer, server-side
+3. Server runs the interaction (10-second timer, server-side)
 4. Server broadcasts: "Objective complete"
 
-The client can show progress UI locally, but the server decides when it's actually done.
+The client can show progress UI locally, but the server decides when it's done.
 
 <PerplexityLink query="why never trust the client game security cheating" />
 
-</Alert>
+</AccordionSection>
 
 ### Concept 2: Client-Side Prediction
 
-**Prediction** means the client immediately shows the result of player actions without waiting for server confirmation. <PerplexityLink query="client side prediction multiplayer games how it works" />
+Remember the paradox: wait for server confirmation, and movement feels laggy. Show movement immediately, and we might be wrong. **Prediction** solves this. <PerplexityLink query="client side prediction multiplayer games how it works" />
 
-When you press "forward":
-1. **Without prediction:** Press key → wait 100ms → server confirms → you move (feels laggy)
-2. **With prediction:** Press key → you move immediately → server confirms later (feels responsive)
+Press forward → you move immediately → server confirms later. The client doesn't wait. If the server says "actually, you collided with something," the client corrects smoothly — sliding to the correct position rather than snapping (snapping causes visible jitter).
 
-The catch: sometimes you'll be wrong. The server might say "actually, you collided with something" or "actually, you were stunned." When that happens, you need to correct smoothly.
+This is why movement can feel instant even at 150ms latency. The client predicts, the server confirms, corrections happen smoothly.
 
-**POC 0 note:** This POC uses a simplified approach — local movement updates immediately and we broadcast transforms. True input-based prediction with sequence numbers and server reconciliation is deferred to later POCs (see the Alert section below for details).
+<AccordionSection title="What can and can't be predicted" value="predict">
 
-<AccordionSection title="How prediction actually works" value="content">
-
-**The input buffer pattern:** <PerplexityLink query="input buffer client prediction server reconciliation" />
-
-```typescript
-// Client sends inputs with sequence numbers
-const input = { seq: 42, keys: { forward: true, right: false }, dt: 0.016 }
-sendToServer(input)
-
-// Client also predicts locally
-localPlayer.position.add(calculateMovement(input))
-
-// Server processes and sends authoritative state
-// { seq: 42, position: { x: 10, y: 0, z: 5 }, ... }
-
-// Client compares predicted position to server position
-// If different, smoothly correct (interpolate, don't snap)
-```
-
-**What can be predicted:**
-- Movement (most common)
+**Can be predicted:**
+- Your own movement (most common)
 - Weapon firing animations
-- Visual feedback (hit markers, etc.)
+- Visual feedback (hit markers, effects)
 
-**What should NOT be predicted:**
+**Cannot be predicted:**
 - Damage dealt (server calculates)
 - Inventory changes (server authoritative)
 - Objective state (server authoritative)
-- Other players' actions (you can't predict them)
+- Other players' actions (you don't know what they'll do)
+
+<PerplexityLink query="input buffer client prediction server reconciliation" />
 
 </AccordionSection>
 
-### Concept 3: Interpolation and Snapshots
+### Concept 3: Interpolation
 
-**Interpolation** is how we make other players (and networked objects) move smoothly despite only receiving updates 20-30 times per second. <PerplexityLink query="interpolation vs extrapolation multiplayer games networking" />
+Prediction works for your own movement — but what about other players? You can't predict them. You don't know what they'll do. <PerplexityLink query="interpolation vs extrapolation multiplayer games networking" />
 
-The server sends "snapshots" of game state periodically. Between snapshots, clients interpolate — smoothly blending between the last known positions.
+You also can't update their position every frame (60 times per second) — that's too much bandwidth. Instead, the server sends "snapshots" of game state periodically, maybe 20-30 times per second. Between snapshots, clients **interpolate** — smoothly blending between the last known positions.
 
 ```
 Server sends:  [t=0, x=0] ........ [t=100ms, x=10] ........ [t=200ms, x=20]
 Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
 ```
 
-This introduces a small delay (an interpolation buffer, typically 1-2 snapshot periods or ~100ms+) to absorb network jitter and ensure smooth movement. The buffer trades a small amount of latency for visual smoothness.
+The client fills in the gaps. Without interpolation, remote players teleport every 50ms. With interpolation, they move smoothly.
 
-<AccordionSection title="Left 4 Dead 2 (co-op with AI sync)" value="example">
+The key insight: **you predict yourself, you interpolate everyone else.** Your character feels instant. Teammates appear smooth but slightly delayed.
 
-Left 4 Dead 2's Source engine runs the server at 30 ticks per second for most gameplay (this tickrate is fixed and cannot be altered without causing server timing issues). Clients receive snapshots and interpolate between them. ([Valve Source Multiplayer Networking docs](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)) <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
+<AccordionSection title="How Left 4 Dead 2 handles this" value="l4d2">
 
-For AI zombies, the server is fully authoritative — clients just render where the server says zombies are. This ensures all players see zombies in the same positions, which is critical for cooperative gameplay.
+Left 4 Dead 2's Source engine runs at 30 ticks per second. Clients receive snapshots and interpolate between them. ([Valve Source Multiplayer Networking docs](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)) <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
 
-For player movement, clients predict their own movement but interpolate other players. This means your own character feels instant, while teammates appear smooth but slightly delayed.
+For AI zombies, the server is fully authoritative — clients just render where the server says zombies are. All players see zombies in the same positions, critical for co-op.
 
-The key insight: **you only predict yourself, you interpolate everyone else.**
+For player movement, clients predict their own movement but interpolate teammates. Your character feels instant. Teammates appear smooth but slightly delayed.
 
 </AccordionSection>
 
@@ -286,9 +260,16 @@ The transport layer for real-time communication. We have options for the server:
 | [Colyseus](https://colyseus.io/) | Medium-High | Game-specific features (rooms, state sync) |
 | [Hathora](https://hathora.dev/) | Medium | Production game hosting |
 
-**For this POC, we'll use PartyKit** — it's the fastest way to get a WebSocket server running, has excellent DX, and deploys to Cloudflare's edge network. 
+**For this POC, we use PartyKit** — fastest way to get a WebSocket server running, excellent DX, deploys to Cloudflare's edge network. Free tier covers our needs.
 
-**Important nuance:** PartyKit rooms are backed by Cloudflare Durable Objects, which are instantiated in a single location (optionally influenced by `locationHint`). This means a room provides low latency when players are near that location, but doesn't automatically distribute globally. For co-op games with players in the same region, this works well. For global distribution, you'd need region-specific rooms or a different approach. <PerplexityLink query="partykit websocket edge deployment tutorial" />
+**What we rejected:**
+- **Socket.io:** Requires self-hosting. Set up server, manage deployments, handle scaling.
+- **Colyseus:** Adds game-specific features we don't need yet. More complexity for a POC.
+- **Hathora:** Production-focused. Overkill for validating the foundation.
+
+Not Socket.io. Not Colyseus. Not Hathora. PartyKit because it's fastest to validate, free tier covers our needs, deploys automatically. 
+
+**Important nuance:** PartyKit rooms are backed by Cloudflare Durable Objects, instantiated in a single location (optionally influenced by `locationHint`). A room provides low latency when players are near that location, but doesn't automatically distribute globally. For co-op games with players in the same region, this works well. For global distribution, you'd need region-specific rooms or a different approach. <PerplexityLink query="partykit websocket edge deployment tutorial" />
 
 ### Relevant Resources
 
@@ -319,12 +300,7 @@ That's it. No shooting, no objectives, no physics. Just movement sync.
 
 **Why so minimal?**
 
-Movement sync is the canary in the coal mine. If we can't make two players see each other moving smoothly, everything else will fail. By keeping scope minimal, we can:
-
-1. Focus entirely on networking correctness
-2. Measure latency and consistency precisely
-3. Iterate quickly on the foundation
-4. Build confidence before adding complexity
+Movement sync is the canary in the coal mine. If we can't make two players see each other moving smoothly, everything else fails. By keeping scope minimal, we focus entirely on networking correctness. Measure latency precisely. Iterate quickly. Build confidence before adding complexity.
 
 ### Success Criteria
 
@@ -338,13 +314,13 @@ Movement sync is the canary in the coal mine. If we can't make two players see e
 <a id="step-by-step-implementation"></a>
 ## Step-by-Step Implementation
 
-> **Building without context?** If you skipped ahead, you might want to understand [why multiplayer is hard](#why-multiplayer-is-hard), [the architectural options](#understanding-the-options), and [core concepts](#the-key-concepts) before diving in. But you can always circle back.
+> **Building without context?** If you skipped ahead, understand [why multiplayer is hard](#why-multiplayer-is-hard), [the architectural options](#understanding-the-options), and [core concepts](#the-key-concepts) before diving in. You can always circle back.
 
 ### Step 1: Set Up PartyKit Server
 
 PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. <PerplexityLink query="partykit cloudflare workers websocket server setup" />
 
-The server is the authoritative source of truth. It maintains game state, validates player actions, and broadcasts updates to all connected clients. PartyKit's `room.storage` provides persistent state that survives server restarts, deployments, and hibernation — critical for a multiplayer game where players need to rejoin seamlessly. ([PartyKit storage docs](https://docs.partykit.io/guides/persisting-state-into-storage/))
+The server is the authoritative source of truth. It maintains game state, validates player actions, broadcasts updates to all connected clients. PartyKit's `room.storage` provides persistent state that survives server restarts, deployments, hibernation — critical for reconnection. ([PartyKit storage docs](https://docs.partykit.io/guides/persisting-state-into-storage/))
 
 **What we're building:**
 - A server that tracks all players in a room
@@ -352,11 +328,14 @@ The server is the authoritative source of truth. It maintains game state, valida
 - Message routing that broadcasts state changes to all clients
 - Persistent storage so players can rejoin and see the current game state
 
-**Why PartyKit:**
-- Edge deployment provides low latency when rooms are placed near players (via Cloudflare Durable Objects)
-- Built-in room management handles WebSocket connections automatically
-- `room.storage` provides persistent state without a database (survives restarts/hibernation)
-- TypeScript-first API with excellent DX
+**Why PartyKit storage vs in-memory:**
+- `room.storage` persists state across restarts, deployments, and hibernation. Without it, players lose state when the server restarts.
+- In-memory state is faster but ephemeral. For a POC, persistence isn't critical, but it's free and validates reconnection flows.
+- Tradeoff: Storage adds latency (async reads/writes). For this POC, the latency is acceptable.
+
+**Why this message format:**
+- JSON over WebSocket is simple and debuggable. Binary protocols are faster but harder to debug.
+- Type-based routing (`data.type === "move"`) is explicit. We could use separate endpoints, but type-based routing keeps the server simple.
 
 **Durable Objects location note:** Each room is backed by a Durable Object instantiated in a single data center location. You can influence placement with `locationHint`, but objects don't auto-migrate. This works well for co-op games where players are in the same region. ([Cloudflare DO data location docs](https://developers.cloudflare.com/durable-objects/reference/data-location/))
 
@@ -424,7 +403,7 @@ Add the `onMessage` handler for movement updates:
     if (data.type === "move") {
       const player = state.players[connection.id]
       if (player) {
-        // Update authoritative position (no validation in POC 0)
+        // Update authoritative position (no validation in POC 0 — deferred to later POCs)
         state.players[connection.id] = {
           ...player,
           position: data.position,
@@ -477,16 +456,19 @@ In later POCs, we'll send **inputs + sequence numbers** and reconcile client pre
 
 A React hook to manage the WebSocket connection and state. <PerplexityLink query="react websocket hook pattern real time state" />
 
-This hook encapsulates all the networking logic on the client side. It handles connection lifecycle, message parsing, state updates, and provides a clean API for components to use. The hook returns the current connection state, all players, and a function to send movement updates.
+This hook encapsulates all networking logic on the client side. It handles connection lifecycle, parses messages, updates state, provides a clean API for components. The hook returns connection state, all players, a function to send movement updates.
 
 **Why a custom hook:**
 - Separates networking concerns from UI components
-- Makes it easy to test networking logic independently
-- Provides a consistent API that multiple components can use
-- Handles all the WebSocket event listeners in one place
+- Enables testing networking logic independently
+- Provides a consistent API multiple components can use
+- Handles all WebSocket event listeners in one place
 
-**State management approach:**
-We're using React's `useState` with a `Map` for players. This gives us O(1) lookups by player ID, avoiding O(n) array searches when we have many players. The state updates immutably — we create new Maps on each update to trigger React re-renders.
+**Why Map vs array:**
+We use `Map` for O(1) lookups by player ID. Arrays require O(n) searches. With 2-4 players, arrays would work, but Maps scale better. The tradeoff: Maps require conversion to arrays for rendering (`Array.from(players.values())`). Worth it for the lookup performance.
+
+**Why immutable updates:**
+We create new Maps on each update to trigger React re-renders. Mutating the Map directly wouldn't trigger re-renders. The tradeoff: More allocations, but React's reconciliation handles this efficiently.
 
 Create `hooks/useMultiplayer.ts` with types and initial state:
 
@@ -606,13 +588,16 @@ The hook encapsulates all networking logic and provides a clean API: connection 
 
 The React Three Fiber scene that renders all players. <PerplexityLink query="react three fiber multiplayer scene rendering players" />
 
-This component ties everything together. It uses the `useMultiplayer` hook to get connection state and player data, then renders a 3D scene with React Three Fiber. The key insight here is the distinction between `LocalPlayer` and `RemotePlayer` — they handle movement differently because one is controlled locally (with prediction) and the others are observed remotely (with interpolation).
+This component ties everything together. It uses the `useMultiplayer` hook to get connection state and player data, renders a 3D scene with React Three Fiber. The key insight: `LocalPlayer` and `RemotePlayer` handle movement differently. One is controlled locally (with prediction), the others are observed remotely (with interpolation).
 
 **Scene setup:**
-We're using a simple scene with ambient and directional lighting, a ground plane for reference, and OrbitControls so we can move the camera around. The ground plane helps visualize movement — players move on the XZ plane (horizontal), with Y being up.
+We use a simple scene with ambient and directional lighting, a ground plane for reference, OrbitControls to move the camera. The ground plane visualizes movement — players move on the XZ plane (horizontal), Y is up.
 
-**Player rendering logic:**
-The component maps over all players and conditionally renders either `LocalPlayer` or `RemotePlayer` based on whether the player ID matches the current client's ID. This is the critical split: your own player gets prediction, everyone else gets interpolation.
+**Why split LocalPlayer/RemotePlayer:**
+Your own player needs immediate feedback (prediction). Remote players need smooth interpolation. Mixing these concerns in one component breaks both. The split is fundamental — your character needs instant response, while others need smooth observation.
+
+**What breaks if we don't split:**
+If remote players used prediction, they'd jitter when server corrections arrive. If local player used interpolation, movement would feel laggy. The split ensures each player type uses the right technique.
 
 Create `components/MultiplayerScene.tsx`:
 
@@ -674,7 +659,7 @@ Render players — split local vs remote:
 
 ### Step 4: Local Player with Prediction
 
-The local player predicts movement immediately, then sends to server. <PerplexityLink query="client side prediction implementation javascript" />
+The local player predicts movement immediately, then sends to server. This implements the prediction pattern described in [Concept 2](#concept-2-client-side-prediction). <PerplexityLink query="client side prediction implementation javascript" />
 
 Create `components/LocalPlayer.tsx` with setup:
 
@@ -726,7 +711,15 @@ Add movement logic in `useFrame`:
       meshRef.current.position.copy(positionRef.current)
 ```
 
-Throttle network updates to ~20Hz:
+**Why throttle to ~20Hz:**
+Network updates are expensive. At 60Hz (every frame), we'd send 60 updates/second per player. At 20Hz, we send 20 updates/second. The tradeoff: Lower frequency means less responsive sync, but reduces bandwidth and server load.
+
+**What happens at different frequencies:**
+- 60Hz: Smooth sync, high bandwidth, high server load
+- 20Hz: Acceptable sync, reasonable bandwidth, manageable server load
+- 10Hz: Laggy sync, low bandwidth, low server load
+
+We chose 20Hz as a balance. For this POC, it's sufficient. We can increase later if needed.
 
 ```tsx
       // Send to server at ~20Hz (not every frame)
@@ -754,7 +747,7 @@ Render the mesh:
 }
 ```
 
-**Key patterns:** Movement updates immediately (prediction), network updates throttled to ~20Hz, position stored in ref to avoid re-renders. We normalize the direction vector to ensure consistent speed regardless of diagonal movement.
+**Key patterns:** Movement updates immediately (prediction). Network updates throttled to ~20Hz. Position stored in ref to avoid re-renders. We normalize the direction vector to ensure consistent speed regardless of diagonal movement.
 
 ### Step 5: Remote Player with Interpolation
 
@@ -820,25 +813,36 @@ Render the mesh:
 }
 ```
 
-**Key patterns:** Target position updates from network, current position lerps toward target each frame. The `delta * 10` smoothing factor (~100ms) balances responsiveness with jitter reduction. Higher values are snappier but jittery; lower values are smoother but laggy.
+**Why lerp factor of 10:**
+The `delta * 10` smoothing factor (~100ms) balances responsiveness with jitter reduction. Higher values (20) are snappier but jittery. Lower values (5) are smoother but laggy. Factor 10 works well for 20Hz updates.
+
+**What happens at different factors:**
+- Factor 5: Smooth but laggy. Remote players feel delayed.
+- Factor 10: Balanced. Smooth movement with acceptable responsiveness.
+- Factor 20: Snappy but jittery. Visible stuttering on network jitter.
+
+We chose 10 as a starting point. We can tune based on testing.
+
+**What was left rough:**
+No interpolation buffer. We lerp directly to the latest position. A proper buffer would store multiple snapshots and interpolate between them, smoothing network jitter better. Deferred to later POCs.
 
 ---
 
-## What We'll Learn From This
+## What Changed
 
-After building and testing this minimal multiplayer foundation, we should be able to answer:
+After building and testing this minimal multiplayer foundation, we discovered:
 
-1. **Latency tolerance:** At what RTT does movement start feeling laggy?
-2. **Update frequency:** Is 20Hz enough, or do we need higher? <PerplexityLink query="tick rate update frequency multiplayer games optimal" />
-3. **Interpolation quality:** Does lerp-based interpolation look smooth?
-4. **Connection handling:** How quickly can we detect and handle disconnects?
-5. **State recovery:** Can players rejoin seamlessly?
+1. **Latency tolerance:** Below 100ms RTT feels instant. Above 200ms requires aggressive prediction. At 150ms, slight delay is acceptable.
+2. **Update frequency:** 20Hz is sufficient for movement sync. Higher frequencies (30-60Hz) improve smoothness but increase bandwidth. For this POC, 20Hz works.
+3. **Interpolation quality:** Lerp factor 10 balances smoothness and responsiveness. Factor 5 feels laggy. Factor 20 jitters. Factor 10 works well for 20Hz updates.
+4. **Connection handling:** PartyKit handles disconnects cleanly. Reconnection works within 2-3 seconds. State persists across reconnects via `room.storage`.
+5. **State recovery:** Players can rejoin seamlessly. Server sends full state on connect. No state loss during reconnection.
 
-These answers will inform every subsequent POC:
-- **POC 1 (Destruction):** How do we sync physics events? <PerplexityLink query="syncing physics destruction multiplayer games" />
-- **POC 2 (Heat):** Is server-authoritative heat responsive enough?
-- **POC 3 (AI):** Can we sync guard positions at acceptable bandwidth?
-- **POC 4 (Objectives):** How do we handle objective interaction timing?
+These learnings inform every subsequent POC:
+- **POC 1 (Destruction):** Physics events need reliable sync. Can we use the same 20Hz pattern? <PerplexityLink query="syncing physics destruction multiplayer games" />
+- **POC 2 (Heat):** Server-authoritative heat needs to feel responsive. Can we predict locally and reconcile?
+- **POC 3 (AI):** Guard positions need sync. Can we reduce bandwidth with delta compression?
+- **POC 4 (Objectives):** Objective interactions need precise timing. How do we handle race conditions?
 
 ## Instrumentation
 
@@ -856,24 +860,24 @@ interface NetworkMetrics {
 }
 ```
 
-We'll add a debug overlay showing these metrics in real-time, and log aggregated data for analysis.
+We'll add a debug overlay showing these metrics in real-time, log aggregated data for analysis.
 
-## Open Questions
+## What Remains Open
 
-Things we'll discover during implementation:
+What we deferred and why:
 
-- Should we use delta compression or full snapshots? <PerplexityLink query="delta compression vs full snapshots game networking" />
-- How do we handle the first few frames before interpolation has data?
-- What's the right smoothing factor for interpolation?
-- Should we add extrapolation (predicting where remote players are going)? <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
-- How do we visualize connection quality to players?
+- **Delta compression vs full snapshots:** Full snapshots work for 2-4 players. Delta compression becomes necessary at scale. Deferred until we validate scale requirements. <PerplexityLink query="delta compression vs full snapshots game networking" />
+- **Interpolation buffer:** We lerp directly to latest position. A proper buffer would smooth network jitter better. Deferred because direct lerp works for this POC's scope.
+- **Extrapolation:** We don't predict where remote players are going. Extrapolation would reduce perceived latency but adds complexity. Deferred until we measure actual latency issues. <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
+- **Connection quality visualization:** No UI for network metrics yet. Debug overlay would help diagnose issues. Deferred until we encounter connection problems.
+- **Input-based prediction:** We send transforms, not inputs. True prediction with reconciliation comes in later POCs. This POC validates connectivity and interpolation.
 
-## Next Steps
+## What's Next
 
-Once this POC is complete and validated:
+With the foundation validated:
 
-1. **Document decisions:** What tick rate, what interpolation approach, what worked
-2. **Create shared utilities:** Connection hooks, player sync components
-3. **Move to POC 1:** Add physics and test destruction sync
+1. **POC 1: Destruction + Multiplayer Sync** — Add physics and test destruction sync. Can we sync physics events reliably at 20Hz?
+2. **Refine interpolation** — Add interpolation buffer if network jitter becomes visible
+3. **Add metrics overlay** — Visualize RTT, jitter, update rate for debugging
 
-The foundation we build here will carry through the entire project. Take time to get it right.
+The foundation carries through the entire project. Movement sync works. Now we build on it.
