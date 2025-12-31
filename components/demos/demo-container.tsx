@@ -48,7 +48,7 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
   return (
     <div
       ref={cardRef}
-      className="my-8 rounded-lg border bg-card shadow-xs focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
+      className="game-container my-8 rounded-lg border bg-card shadow-xs focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
       tabIndex={0}
       onClick={handleClick}
     >

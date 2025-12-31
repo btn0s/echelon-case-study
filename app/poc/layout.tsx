@@ -20,9 +20,13 @@ export default function POCLayout({
           </Link>
         </nav>
 
-        <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none" style={{ scrollPaddingTop: '24px' }}>
+        <main
+          id="main-content"
+          className="prose prose-sm prose-neutral dark:prose-invert max-w-none"
+          style={{ scrollPaddingTop: "24px" }}
+        >
           {children}
-        </div>
+        </main>
 
         <POCNavigation />
       </div>

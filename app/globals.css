@@ -126,6 +126,28 @@
   }
 }
 
+/* Dim the main POC content when the interactive demo is focused */
+#main-content::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+  z-index: 30;
+  transition: opacity 0.2s ease-in-out;
+  opacity: 0%;
+}
+
+#main-content:has(.game-container:focus-within)::before {
+  opacity: 100%;
+}
+
+/* Keep the game card above the dim overlay */
+.game-container {
+  position: relative;
+  z-index: 50;
+}
+
 :root {
   --sh-class: #2d5e9d;
   --sh-identifier: #354150;
