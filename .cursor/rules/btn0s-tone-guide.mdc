@@ -1,0 +1,201 @@
+# btn0s Tone Guide (v1)
+
+## What this guide is for
+
+Use this to make your writing:
+
+- **More consistent** (same voice across posts)
+- **More intentional** (pick the right mode for the goal)
+- **More transferable** (readers can act, not just agree)
+
+This is a working document. Update it as you ship more writing.
+
+---
+
+## Positioning (the lane)
+
+**I build tools and game-like systems that create momentum for other people.**  
+Not “content”, not “hot takes”. Clear paths. Clean handoffs. Doors that are already open.
+
+If you need a sharper sentence:
+
+- **Design engineer with game-design instincts:** I care about interaction feel, clarity, stakes, feedback loops, and the invisible infrastructure that makes systems trustworthy.
+
+---
+
+## Non‑negotiables (voice rules)
+
+- **Clarity over cleverness.** Prefer the plain sentence that lands.
+- **Purpose over performance.** No hype, no chest-thumping, no “thought leadership”.
+- **Show the thinking.** Decisions earn trust when you expose tradeoffs.
+- **Teach, don’t document.** Write like you’re explaining to a smart builder new to the domain.
+- **Be specific.** Name the game, name the failure mode, name the constraint.
+- **Quiet confidence.** Let the craft speak; you don’t need to announce it.
+
+---
+
+## Tone knobs (choose deliberately per post)
+
+Dial these up/down before you write the first sentence.
+
+- **Immediacy** (how fast readers get value)
+  - Low: reflective essays, ethos pieces
+  - High: tutorials, “how I built X”, recipes
+- **Rigor** (how explicit your reasoning + tradeoffs are)
+  - Low: gallery posts, lightweight notes
+  - High: system design, networking, economy, AI behaviors
+- **Poetry** (metaphor, cadence, fragments)
+  - Low: technical docs, reference pages
+  - High: “Why I Build” style, manifesto notes
+- **Warmth** (direct address, empathy, openness)
+  - Low: sterile/academic (avoid)
+  - High: “I’m worried. I’m excited.” / “This sounds simple. It is not.”
+
+Rule: **Don’t max all knobs at once.** Pick one primary and one secondary.
+
+---
+
+## Canonical structures (pick one; don’t freestyle early)
+
+### 1) Systems Case Study (your default technical mode)
+Best for: game systems, infrastructure, prototypes, anything with tradeoffs.
+
+**Problem → Options → Decision → Implementation → Results**
+
+Required moves:
+- Define the **failure cost** (“get it wrong and players see different worlds”)
+- Enumerate 2–3 real options (not strawmen)
+- State what’s **out of scope** (protects clarity)
+- End with **what we learned** + what changes next
+
+### 2) Builder’s Log (Emil-adjacent: craft + receipts)
+Best for: components, micro-interactions, “small detail, big feel”.
+
+**Story → Constraint → Attempt(s) → Fix → Why it matters**
+
+Required moves:
+- Show the **before/after** (even if it’s just described)
+- Admit the “trial and error” constants (“this number is what I landed on…”)
+- Give readers something to steal today (pattern, snippet, heuristic)
+
+### 3) Craft Essay (Rauno-adjacent: distilled principles)
+Best for: interaction design principles, taste, “invisible details”.
+
+**A claim → A concrete example → A general rule**
+
+Required moves:
+- Sectioned, skimmable headings
+- Crisp sentences, minimal backstory
+- High signal, low autobiography
+
+### 4) Quiet Manifesto (your philosophical mode)
+Best for: identity, motivation, values, “what I’m optimizing for”.
+
+**Origin → Principle → Practice → Invitation**
+
+Required moves:
+- Use cadence intentionally (short lines earn emphasis)
+- Anchor with 1–2 concrete images or memories (not abstract virtue)
+- Land the invitation: “Here’s what I’m trying to build next / for whom”
+
+### 5) Gallery / Catalog (Gavin Nelson-adjacent)
+Best for: prototypes, experiments, “look at this motion”.
+
+**One sentence of intent → a list of artifacts**
+
+Required moves:
+- A single framing line (why these exist)
+- Titles that imply the interaction (“Time Machine scrolling concept”)
+- Optional: one line per artifact if readers need context
+
+---
+
+## Signature phrasing (keep; don’t overuse)
+
+These are “btn0s tells” — use sparingly so they stay sharp.
+
+- “This sounds simple. It is not.”
+- “Get it wrong, and …”
+- “Not X. Y.”
+- “Build something that lets someone else begin.”
+- “The invisible infrastructure…”
+
+---
+
+## Anti-patterns (what to cut on sight)
+
+- **Hype verbs**: “crushed”, “insane”, “game-changing”, “revolutionary”
+- **Vague claims**: “it’s important”, “it’s interesting”, “it’s powerful”
+- **Authority cosplay**: “as we all know”, “obviously”, “clearly”
+- **Unpriced opinions**: strong takes without constraints, examples, or tradeoffs
+- **Over-fragmentation**: too many poetic fragments without a thesis
+
+### AI tells (cut these too)
+
+**Hedging/throat-clearing:**
+
+- "It's important to note...", "It is worth mentioning..."
+- "But it wasn't just X—Y" (over-explains the pivot)
+
+**Grandiose verbs:**
+
+- Delve, Dive into, Embrace, Empower, Foster, Navigate, Unveil, Enhance
+
+**Vague grandeur nouns:**
+
+- Landscape, Realm, Tapestry, Journey (unless literal)
+
+**Overwrought adjectives:**
+
+- Vibrant, Intricate, Meticulous, Cutting-edge, Rapidly evolving
+
+**Cliché openers/phrases:**
+
+- "In this day and age", "At the end of the day", "In the realm of"
+- "Picture this", "A testament to...", "Fast-paced world"
+
+**Overused transitions:**
+
+- Furthermore, Moreover, Additionally, Consequently, As a result
+- "In other words", "In conclusion"
+
+**Structural tells:**
+
+- Repetitive sentence structures (same rhythm, same length)
+- Excessive qualification before every claim
+- Over-structured (too many numbered lists, too-clean headers)
+
+---
+
+## Specificity checklist (the “make it real” pass)
+
+Before publishing, ensure you have at least:
+
+- **1 named constraint** (latency, budget, time, team size, perf target)
+- **1 named failure mode** (desync, jank, unfairness, unclear affordance)
+- **2 alternatives** you considered (and why you rejected them)
+- **1 reader takeaway** that can be applied elsewhere (pattern / heuristic)
+
+---
+
+## Editing checklist (the “sound like you” pass)
+
+Run this in order:
+
+1. **Cut the ego:** remove self-justification, resume lines, unnecessary flex.
+2. **Expose the hinge:** what decision did everything depend on?
+3. **Make tradeoffs legible:** add the “cost” of each option.
+4. **Tighten the cadence:** keep fragments only where they earn emphasis.
+5. **End with momentum:** next step, open question, or invitation.
+
+---
+
+## Hybrid recipe (recommended)
+
+If you want posts to feel more “alive” without losing your lane:
+
+- Open with **your problem statement** (btn0s)
+- Write the middle with **progressive disclosure + concrete fixes** (Emil/Josh)
+- Use **distilled craft sections** for skimmability (Rauno)
+- Close with **purpose + next motion** (btn0s)
+
