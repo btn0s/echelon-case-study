@@ -24,9 +24,7 @@ export default function HomePage() {
         <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none">
           {/* Header */}
           <header>
-            <h1 className="text-balance">
-              Echelon: A Game Design Case Study
-            </h1>
+            <h1 className="text-balance">Echelon: A Game Design Case Study</h1>
             <p className="text-lg text-muted-foreground">
               Nine prototypes. One game. Breaking down a complex design problem
               into answerable questions.
@@ -38,9 +36,9 @@ export default function HomePage() {
             <p>
               Echelon is a co-op heist game. You and a partner are corporate
               mercenaries in a megacity where superheroes work for the highest
-              bidder. Go quiet and stay safe, or go loud and get rich. The
-              walls aren&apos;t obstacles—they&apos;re shortcuts you can blow
-              open, if you&apos;re willing to pay the price.
+              bidder. Go quiet and stay safe, or go loud and get rich. The walls
+              aren&apos;t obstacles—they&apos;re shortcuts you can blow open, if
+              you&apos;re willing to pay the price.
             </p>
             <p>
               Make too much noise and a superpowered enforcer crashes through.
@@ -74,8 +72,12 @@ export default function HomePage() {
             <div className="flex flex-col gap-6 not-prose mt-6">
               {POCS.map((poc, index) => {
                 const parts = poc.parts ?? [];
-                const isComingSoon = parts.length === 0 && poc.status === "pending";
-                const fallbackPart = { title: poc.title, href: `/poc/${poc.slug}` };
+                const isComingSoon =
+                  parts.length === 0 && poc.status === "pending";
+                const fallbackPart = {
+                  title: poc.title,
+                  href: `/poc/${poc.slug}`,
+                };
 
                 return (
                   <div key={poc.id} className="border-b pb-4">
@@ -110,13 +112,10 @@ export default function HomePage() {
             </div>
           </section>
 
-          <nav className="not-prose flex items-center justify-between border-t pt-8 mt-12">
+          <nav className="not-prose flex items-center justify-between pt-8">
             <div />
             <Link
-              href={
-                POCS[0]?.parts?.[0]?.href ??
-                `/poc/${POCS[0]?.slug || ""}`
-              }
+              href={POCS[0]?.parts?.[0]?.href ?? `/poc/${POCS[0]?.slug || ""}`}
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <span>Start reading</span>
