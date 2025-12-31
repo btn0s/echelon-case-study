@@ -26,6 +26,23 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
       const target = e.target as Node | null;
       if (!target) return;
 
+      // Base UI Select renders its popup in a portal, outside the card DOM.
+      // Treat interactions inside the select popup as "inside" for control-mode.
+      // (Otherwise, clicking a select item would look like an outside click and deactivate.)
+      const targetEl = target as HTMLElement;
+      const isSelectPortalInteraction =
+        typeof targetEl.closest === "function" &&
+        !!targetEl.closest(
+          [
+            "[data-slot='select-content']",
+            "[data-slot='select-item']",
+            "[data-slot='select-group']",
+            "[data-slot='select-scroll-up-button']",
+            "[data-slot='select-scroll-down-button']",
+          ].join(", ")
+        );
+      if (isSelectPortalInteraction) return;
+
       // Click inside: activate.
       if (card.contains(target)) {
         setActive(true);
@@ -56,7 +73,6 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
   const handleClick = (e: React.MouseEvent) => {
     // Always focus the card, even when clicking controls
     // This ensures keyboard input continues to work
-    e.preventDefault();
     cardRef.current?.focus();
   };
 
@@ -73,7 +89,7 @@ export function DemoContainer({ controls, children }: DemoContainerProps) {
     <div
       ref={cardRef}
       data-game-container
-      className="game-container rounded-lg border bg-card shadow-xs focus:outline-none cursor-pointer overflow-hidden"
+      className="game-container rounded-lg border bg-card shadow-xs focus:outline-none data-active:ring-4 data-active:ring-border cursor-pointer overflow-hidden transition-all duration-200"
       tabIndex={0}
       onClick={handleClick}
     >
