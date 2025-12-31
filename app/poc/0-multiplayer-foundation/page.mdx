@@ -9,9 +9,9 @@ export const metadata = {
 
 Before destructible walls, heat systems, or Super encounters, we need the boring thing: two players in the same world, moving smoothly.
 
-The core problem is latency. Your input has to go to a server and back — typically 20-150ms depending on distance. If you wait for confirmation, movement feels sluggish. If you move immediately, you might be wrong. This POC builds the smallest system that resolves that tension well enough to build on.
+The core problem is latency. Your input has to go to a server and back — typically 20-150ms depending on distance. If you wait for confirmation, movement feels sluggish. If you move immediately, you might be wrong. This POC builds the smallest system that resolves that tension between responsiveness and authority in co-op movement sync.
 
-**Want to skip the theory?** **Go ahead** → [Implementation](#implementation).
+Before we build, we’re going to earn a bit of context: latency, authority, and the tradeoffs that let co-op feel immediate without clients disagreeing about what’s true.
 
 <Anchor id="why-multiplayer-is-hard" />
 ## Why Multiplayer is Hard
@@ -20,9 +20,11 @@ The core problem is latency. Your input has to go to a server and back — typic
 
 Press "move forward" on your keyboard. That input travels through wires to a server and back. That round trip is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
 
+One note on language: in this POC, when we say “server,” we mean “the authoritative machine.” In co-op, that’s usually the host.
+
 For single-player, this is irrelevant. For multiplayer, it creates a paradox:
 
-- Wait for server confirmation, and movement feels sluggish
+- Wait for the host to confirm, and movement feels sluggish
 - Show movement immediately, and you might be wrong about where you are
 - Two players interact with the same object — who wins?
 
@@ -40,7 +42,7 @@ If you felt that “dead air” between intent and motion, that’s the whole pr
 | 200ms | Requires aggressive techniques; without them, feels like 200ms delay — unplayable |
 | 300ms | Noticeable lag |
 
-This is the whole game: make movement feel immediate without letting the world fork.
+This is the whole game: make movement feel immediate without clients disagreeing about what’s true.
 
 <AccordionSection title="The history of multiplayer networking" value="content">
 
@@ -89,11 +91,13 @@ Player C ←→ Player D
 | No server costs | N² connections (scales poorly) |
 | Lower latency for nearby players | No authoritative state (who's right when players disagree?) |
 | Works offline/LAN | Cheating is trivial (your machine decides what's true) |
-| | NAT traversal is painful <PerplexityLink query="NAT traversal hole punching multiplayer games" /> |
+| | NAT traversal is painful |
+
+<PerplexityLink query="NAT traversal hole punching multiplayer games" />
 
 ### Option 2: Host-Authoritative (Listen Server)
 
-One player's machine acts as both player and server. Other players connect to them. <PerplexityLink query="listen server host migration multiplayer games" />
+One player's machine acts as both a player and the authority. Other players connect to them. <PerplexityLink query="listen server host migration multiplayer games" />
 
 **How it works:**
 ```
@@ -104,9 +108,10 @@ Player B → Host (Player A) ← Player C
 
 | Pros | Cons |
 |------|------|
-| No dedicated server needed | Host has zero latency (unfair advantage in competitive games) |
-| Simpler than full client-server | If host disconnects, game ends (or requires migration) |
-| Works for small player counts | Host's internet quality affects everyone |
+| No server costs | Host disconnect ends session (or requires migration) |
+| One authoritative source of truth | Host's internet quality affects everyone |
+| Works well for co-op (no fairness concerns) | Host's CPU/upload becomes bottleneck |
+| Simple to implement and deploy | |
 
 ### Option 3: Client-Server (Dedicated Server)
 
@@ -122,51 +127,53 @@ Player A → Server ← Player B
 | Pros | Cons |
 |------|------|
 | Consistent experience for all players | Requires server infrastructure |
-| Server can validate/prevent cheating | Added complexity |
 | Server can persist state, handle reconnects | Server costs money |
+| Better for matchmaking at scale | Added complexity |
 | Professional hosting options (Hathora, etc.) | |
 
 ### Which approach for Echelon?
 
-Echelon has heat systems, AI guards, and objectives. If one player sees 80% heat and another sees 50%, the game breaks.
+| Option | Who is the authority? | What you pay | What breaks first |
+|--------|------------------------|--------------|-------------------|
+| P2P | Nobody (state is negotiated) | No servers to run (but networking complexity) | Clients disagree about what’s true |
+| Host-auth (listen server) | The host | Host is a single point of failure | Host disconnects or can’t keep up |
+| Dedicated server | A server you run | Infra + ops cost | Shipping/operating servers becomes the work |
 
-| Factor | P2P | Host-Auth | Client-Server |
-|--------|-----|-----------|---------------|
-| Fairness | No authority | Host advantage | Equal for all |
-| Cheating | Easy | Host can cheat | Server validates |
-| Complexity | Simple | Medium | Higher |
-| Cost | Free | Free | Server costs |
-| Reconnection | Hard | Host migration | Clean reconnect |
+Echelon has heat systems, AI guards, and objectives — shared systems where everyone needs to agree on what’s true. If one player sees 80% heat and another sees 50%, the game breaks.
 
-P2P won't work (no authority, easy cheating). Host-authoritative won't work either (host advantage, messy disconnects). **That leaves client-server.**
+But this is co-op. We don’t need competitive-grade fairness guarantees. We need one authority that keeps the session consistent, and movement that feels immediate. <PerplexityLink query="why host auth is fine for coop and why you should switch to dedicated for pvp" />
+
+**For Echelon, host-authoritative is the right default.** It gives us one source of truth without standing up dedicated infrastructure. The tradeoff is that we accept a single point of failure: the host’s internet/CPU affects everyone, and if they leave the session ends. Luckily, there are common techniques like host migration to mitigate this. <PerplexityLink query="host migration listen server co-op games how it works" />
 
 <Anchor id="the-key-concepts" />
 ## The Key Concepts
 
-Now that we've chosen client-server, everything else is three techniques applied in the right places.
+Now that we've chosen host-authoritative, everything else is three techniques applied in the right places.
 
 ### Concept 1: Authority
 
 **Authority** answers: who is the source of truth for this piece of state? <PerplexityLink query="server authority vs client authority multiplayer games" />
 
-In client-server, the server owns critical game state — health, inventory, objectives, AI positions. If a client says "I completed the objective," the server ignores it. The server decides what's true.
+In host-authoritative, the host's machine owns critical game state — health, inventory, objectives, AI positions. If a client says "I completed the objective," the host ignores it. The host decides what's true.
 
-But if the server owns *everything*, movement feels laggy. So we let clients predict some things locally — their own movement, visual effects. The server remains authoritative and can correct, but the client doesn't wait.
+"Authoritative" means one machine resolves conflicts — it doesn't have to be a cloud server. For co-op, the host's machine is sufficient.
 
-This split is the foundation: **server authoritative for critical state, client predictive for responsiveness.**
+But if the host owns *everything*, movement feels laggy for remote players. So we let clients predict some things locally — their own movement, visual effects. The host remains authoritative and can correct, but the client doesn't wait.
+
+This split is the foundation: **host authoritative for critical state, client predictive for responsiveness.**
 
 <AccordionSection title="Why never trust the client" value="trust">
 
-If the client tells the server "I completed the objective," a cheater can just send that message without actually doing anything.
+If the client tells the host "I completed the objective," a cheater can just send that message without actually doing anything.
 
 The correct pattern:
 
 1. Client sends: "I'm interacting with the terminal"
-2. Server validates: Is the player near the terminal? Is the terminal hackable?
-3. Server runs the interaction (10-second timer, server-side)
-4. Server broadcasts: "Objective complete"
+2. Host validates: Is the player near the terminal? Is the terminal hackable?
+3. Host runs the interaction (10-second timer, host-side)
+4. Host broadcasts: "Objective complete"
 
-The client can show progress UI locally, but the server decides when it's done.
+The client can show progress UI locally, but the host decides when it's done.
 
 <PerplexityLink query="why never trust the client game security cheating" />
 
@@ -174,13 +181,13 @@ The client can show progress UI locally, but the server decides when it's done.
 
 ### Concept 2: Client-Side Prediction
 
-Remember the paradox: wait for server confirmation, and movement feels laggy. Show movement immediately, and we might be wrong. **Prediction** solves this. <PerplexityLink query="client side prediction multiplayer games how it works" />
+Remember the paradox: wait for host confirmation, and movement feels laggy. Show movement immediately, and we might be wrong. **Prediction** solves this. <PerplexityLink query="client side prediction multiplayer games how it works" />
 
-Press forward → you move immediately → server confirms later. The client doesn't wait. If the server says "actually, you collided with something," the client corrects smoothly — sliding to the correct position rather than snapping (snapping causes visible jitter).
+Press forward → you move immediately → host confirms later. The client doesn't wait. If the host says "actually, you collided with something," the client corrects smoothly — sliding to the correct position rather than snapping (snapping causes visible jitter).
 
-This is why movement can feel instant even at 150ms latency. The client predicts, the server confirms, corrections happen smoothly.
+This is why movement can feel instant even at 150ms latency. The client predicts, the host confirms, corrections happen smoothly.
 
-**Try it yourself** — toggle prediction on/off and feel the difference. With prediction off, you wait for the server. With prediction on, you move immediately while the server state trails behind.
+**Try it yourself** — toggle prediction on/off and feel the difference. With prediction off, you wait for the host. With prediction on, you move immediately while the host state trails behind.
 
 <PredictionDemo />
 
@@ -192,9 +199,9 @@ This is why movement can feel instant even at 150ms latency. The client predicts
 - Visual feedback (hit markers, effects)
 
 **Cannot be predicted:**
-- Damage dealt (server calculates)
-- Inventory changes (server authoritative)
-- Objective state (server authoritative)
+- Damage dealt (host calculates)
+- Inventory changes (host authoritative)
+- Objective state (host authoritative)
 - Other players' actions (you don't know what they'll do)
 
 <PerplexityLink query="input buffer client prediction server reconciliation" />
@@ -205,10 +212,10 @@ This is why movement can feel instant even at 150ms latency. The client predicts
 
 Prediction works for your own movement — but what about other players? You can't predict them. You don't know what they'll do. <PerplexityLink query="interpolation vs extrapolation multiplayer games networking" />
 
-You also can't update their position every frame (60 times per second) — that's too much bandwidth. Instead, the server sends "snapshots" of game state periodically, maybe 20-30 times per second. Between snapshots, clients **interpolate** — smoothly blending between the last known positions.
+You also can't update their position every frame (60 times per second) — that's too much bandwidth. Instead, the host sends "snapshots" of game state periodically, maybe 20-30 times per second. Between snapshots, clients **interpolate** — smoothly blending between the last known positions.
 
 ```
-Server sends:  [t=0, x=0] ........ [t=100ms, x=10] ........ [t=200ms, x=20]
+Host sends:  [t=0, x=0] ........ [t=100ms, x=10] ........ [t=200ms, x=20]
 Client shows:  x=0, x=1, x=2, x=3... x=10, x=11, x=12... x=20
 ```
 
@@ -224,1042 +231,24 @@ The key insight: **you predict yourself, you interpolate everyone else.** Your c
 
 Left 4 Dead 2's Source engine runs at 30 ticks per second. Clients receive snapshots and interpolate between them. ([Valve Source Multiplayer Networking docs](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking)) <PerplexityLink query="left 4 dead 2 source engine networking tick rate" />
 
-For AI zombies, the server is fully authoritative — clients just render where the server says zombies are. All players see zombies in the same positions, critical for co-op.
+Left 4 Dead 2 uses dedicated servers, but the same patterns apply to host-authoritative: the authoritative machine (server or host) sends snapshots, and clients interpolate between them.
+
+For AI zombies, the authoritative machine is fully authoritative — clients just render where it says zombies are. All players see zombies in the same positions, critical for co-op.
 
 For player movement, clients predict their own movement but interpolate teammates. Your character feels instant. Teammates appear smooth but slightly delayed.
 
 </AccordionSection>
 
 ---
+## Conclusion
 
-<Anchor id="implementation" />
+We’ve named the hard parts: latency, a single authority, and the two tricks that keep co-op feeling good (predict yourself, interpolate everyone else).
 
-# Implementation
-
-With the architecture and concepts covered, let's look at what we're building and the tools we'll use.
-
-**Runnable version:** [`/play/0-multiplayer-foundation`](/play/0-multiplayer-foundation)
-
-## What We're Building
-
-A minimal multiplayer foundation: two players in a shared 3D space, moving smoothly. No shooting, no objectives, no physics. Just movement sync.
-
-Movement sync is the canary. If two players can't see each other moving smoothly, everything else fails — destruction won't sync, heat will desync, objectives will race. We validate the foundation before building on it.
-
-### The Architecture
-
-Every client-server multiplayer game has four pieces:
-
-| Piece | Role | Technique |
-|-------|------|-----------|
-| **Server** | Owns game state, broadcasts updates | Authority |
-| **Connection Manager** | Handles WebSocket lifecycle, routes messages | Transport |
-| **Local Controller** | Handles input, moves immediately | Prediction |
-| **Remote Renderer** | Receives updates, animates smoothly | Interpolation |
-
-**The data flow:**
-
-1. Player presses forward → local controller moves immediately (prediction)
-2. Client sends an **input message** (keys + sequence number) to the server
-3. Server advances an authoritative simulation on a fixed tick and broadcasts a **snapshot**
-4. Other clients buffer snapshots and interpolate remote players with a small render delay
-
-This maps directly to the concepts from [The Key Concepts](#the-key-concepts):
-- **Authority** → Server owns state. Clients propose, server decides.
-- **Prediction** → Local controller moves before confirmation. Feels instant.
-- **Interpolation** → Remote renderer smooths between updates. Looks smooth.
-
-### Scope Constraints
-
-What we're explicitly **not** building:
-
-- **Physics** — No collisions. Movement is pure translation.
-- **Lag compensation** — Server doesn't rewind time for hit detection. Not needed for movement-only POC.
-- **Delta compression** — Full snapshots every tick. Works for 2-4 players, won't scale beyond that.
-- **Extrapolation** — No dead reckoning for late packets. High latency causes visible hitches.
-
-These are intentional simplifications. Each defers complexity to validate the core: can two players see each other moving smoothly?
-
-### Success Criteria
-
-| Criteria | Target | Why It Matters |
-|----------|--------|----------------|
-| Connection | 99%+ reliability | If connections drop, nothing else works |
-| Movement sync | No visible desync | Players must agree on where each other are |
-| Latency tolerance | \<150ms feels good | Validates prediction/interpolation work |
-| Reconnection | Rejoin within 10s | Validates state persistence and recovery |
-
-**How we'll measure:**
-- Connect/disconnect 100 times, count failures
-- Record both screens, compare player positions frame-by-frame
-- Add artificial latency (50ms, 100ms, 150ms, 200ms), observe feel
-- Kill WiFi mid-session, reconnect, verify state matches
-
-## Our Stack
-
-We're building with the pmndrs (Poimandres) ecosystem — React Three Fiber for 3D rendering, with a WebSocket-based networking layer. <PerplexityLink query="pmndrs poimandres react three fiber ecosystem" />
-
-### Core Technologies
-
-**React Three Fiber (R3F)**
-The React renderer for Three.js. Lets us build 3D scenes with React components. We'll use this for all game rendering. <PerplexityLink query="react three fiber vs vanilla threejs pros cons" />
-
-**Zustand**
-Minimal state management from the pmndrs ecosystem. R3F uses it internally, and we'll use it for local game state. Note: Zustand is client-side only — we need networking to sync between clients. <PerplexityLink query="zustand state management react three fiber" />
-
-**WebSockets**
-The transport layer for real-time communication. We have options for the server: <PerplexityLink query="websocket vs webrtc for multiplayer games" />
-
-| Option | Complexity | Best For |
-|--------|------------|----------|
-| [PartyKit](https://partykit.io/) | Low | Quick prototypes, edge deployment |
-| [Socket.io](https://socket.io/) | Medium | Traditional WebSocket server |
-| [Colyseus](https://colyseus.io/) | Medium-High | Game-specific features (rooms, state sync) |
-| [Hathora](https://hathora.dev/) | Medium | Production game hosting |
-
-**For this POC, we use PartyKit** — fastest way to get a WebSocket server running, excellent DX, deploys to Cloudflare's edge network. Free tier covers our needs.
-
-**What we rejected:**
-- **Socket.io:** Requires self-hosting. Set up server, manage deployments, handle scaling.
-- **Colyseus:** Adds game-specific features we don't need yet. More complexity for a POC.
-- **Hathora:** Production-focused. Overkill for validating the foundation.
-
-Not Socket.io. Not Colyseus. Not Hathora. PartyKit because it's fastest to validate, free tier covers our needs, deploys automatically. 
-
-**Important nuance:** PartyKit rooms are backed by Cloudflare Durable Objects, instantiated in a single location (optionally influenced by `locationHint`). A room provides low latency when players are near that location, but doesn't automatically distribute globally. For co-op games with players in the same region, this works well. For global distribution, you'd need region-specific rooms or a different approach. <PerplexityLink query="partykit websocket edge deployment tutorial" />
-
-<Anchor id="step-by-step-implementation" />
-## Step-by-Step Implementation
-
-Now let's build it.
-
-### Step 1: Set Up PartyKit Server
-
-PartyKit gives us a WebSocket server that deploys to Cloudflare's edge network. <PerplexityLink query="partykit cloudflare workers websocket server setup" />
-
-The server is the authoritative source of truth. It maintains game state, validates player actions, broadcasts updates to all connected clients. PartyKit's `room.storage` provides persistent state that survives server restarts, deployments, hibernation — critical for reconnection. ([PartyKit storage docs](https://docs.partykit.io/guides/persisting-state-into-storage/))
-
-**What we're building:**
-- A server that tracks all players in a room
-- Connection lifecycle handlers (connect, message, disconnect)
-- Message routing that broadcasts state changes to all clients
-- Persistent storage so players can rejoin and see the current game state
-
-**Why PartyKit storage vs in-memory:**
-- `room.storage` persists state across restarts, deployments, and hibernation. Without it, players lose state when the server restarts.
-- In-memory state is faster but ephemeral. For a POC, persistence isn't critical, but it's free and validates reconnection flows.
-- Tradeoff: Storage adds latency (async reads/writes). For this POC, the latency is acceptable.
-
-**Why this message format:**
-- JSON over WebSocket is simple and debuggable. Binary protocols are faster but harder to debug.
-- Type-based routing (`data.type === "input"`, `data.type === "snapshot"`) is explicit. We could use separate endpoints, but type-based routing keeps the server simple.
-
-**Durable Objects location note:** Each room is backed by a Durable Object instantiated in a single data center location. You can influence placement with `locationHint`, but objects don't auto-migrate. This works well for co-op games where players are in the same region. ([Cloudflare DO data location docs](https://developers.cloudflare.com/durable-objects/reference/data-location/))
-
-Create `party/main.ts` and start with the types and interfaces. This matches the runnable POC exactly:
-
-```typescript
-// party/main.ts
-import type { PartyKitServer, PartyConnection } from "partykit/server"
-
-type Vec3 = { x: number; y: number; z: number }
-type InputState = { w: boolean; a: boolean; s: boolean; d: boolean }
-
-const DEFAULT_INPUT: InputState = { w: false, a: false, s: false, d: false }
-
-interface PlayerState {
-  id: string
-  position: Vec3
-  rotation: number
-  lastProcessedInputSeq: number
-  currentInput: InputState
-}
-
-interface GameState {
-  players: Record<string, PlayerState>
-  tick: number
-}
-
-type InputMessage = { type: "input"; seq: number; dt: number; keys: InputState }
-type SnapshotMessage = {
-  type: "snapshot"
-  serverTime: number
-  tick: number
-  players: Array<{
-    id: string
-    position: Vec3
-    rotation: number
-    lastProcessedInputSeq: number
-  }>
-}
-```
-
-Now add the `onConnect` handler — this runs when a player joins:
-
-```typescript
-export default {
-  async onConnect(connection: PartyConnection, room) {
-    // Load existing state or create new
-    const state =
-      (await room.storage.get<GameState>("state")) ??
-      ({ players: {}, tick: 0 } satisfies GameState)
-    
-    // Create new player at spawn point
-    const player: PlayerState = {
-      id: connection.id,
-      position: { x: 0, y: 0.5, z: 0 },
-      rotation: 0,
-      lastProcessedInputSeq: 0,
-      currentInput: DEFAULT_INPUT,
-    }
-    state.players[connection.id] = player
-    
-    // Send current game state to the new player
-    connection.send(JSON.stringify({
-      type: "init",
-      playerId: connection.id,
-      players: Object.values(state.players).map(p => ({
-        id: p.id,
-        position: p.position,
-        rotation: p.rotation,
-      })),
-    }))
-    
-    // Tell everyone else about the new player
-    room.broadcast(JSON.stringify({
-      type: "player-joined",
-      player: {
-        id: player.id,
-        position: player.position,
-        rotation: player.rotation,
-      },
-    }), [connection.id]) // Exclude the new player from this broadcast
-    
-    await room.storage.put("state", state)
-  },
-```
-
-Add the `onMessage` handler for **input** updates:
-
-```typescript
-  async onMessage(message: string, connection: PartyConnection, room) {
-    const data = JSON.parse(message)
-    const state =
-      (await room.storage.get<GameState>("state")) ??
-      ({ players: {}, tick: 0 } satisfies GameState)
-    
-    if (data.type === "input") {
-      const player = state.players[connection.id]
-      if (player) {
-        // Server stores the latest input. The actual movement happens on the fixed tick.
-        player.currentInput = data.keys
-        player.lastProcessedInputSeq = Math.max(player.lastProcessedInputSeq, data.seq)
-      }
-    }
-    
-    await room.storage.put("state", state)
-  },
-```
-
-Add a fixed tick via **PartyKit alarms** (this is the reliable way to schedule recurring work in PartyKit).
-
-The tick advances the authoritative simulation and broadcasts a snapshot to all clients. For reconciliation, the snapshot also includes each player's `lastProcessedInputSeq`.
-
-```typescript
-const TICK_RATE_MS = 50 // 20Hz
-const TICK_DELTA_TIME = TICK_RATE_MS / 1000
-
-// Helper functions (shared with client)
-function directionFromInput(input: InputState): Vec3 {
-  const x = (input.d ? 1 : 0) + (input.a ? -1 : 0)
-  const z = (input.s ? 1 : 0) + (input.w ? -1 : 0)
-  if (x !== 0 && z !== 0) {
-    return { x: x * 0.707, y: 0, z: z * 0.707 } // Normalize diagonals
-  }
-  return { x, y: 0, z }
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
-}
-
-// Shared movement simulation (must match client exactly)
-// In the actual implementation, this is imported from a shared module (e.g., `movement.ts`)
-// to ensure client and server use identical math. For the tutorial, we show the function inline:
-function simulateMovement(position: Vec3, input: InputState, deltaTime: number): Vec3 {
-  const dir = directionFromInput(input)
-  if (dir.x === 0 && dir.z === 0) return position
-  
-  const speed = 5
-  const movement = {
-    x: dir.x * speed * deltaTime,
-    y: 0,
-    z: dir.z * speed * deltaTime,
-  }
-  
-  return {
-    x: clamp(position.x + movement.x, -9.5, 9.5),
-    y: 0.5,
-    z: clamp(position.z + movement.z, -9.5, 9.5),
-  }
-}
-
-function broadcastSnapshot(room, state: GameState) {
-  const snapshot = {
-    type: "snapshot",
-    serverTime: Date.now(),
-    tick: state.tick,
-    players: Object.values(state.players).map(p => ({
-      id: p.id,
-      position: p.position,
-      rotation: p.rotation,
-      lastProcessedInputSeq: p.lastProcessedInputSeq,
-    })),
-  }
-  room.broadcast(JSON.stringify(snapshot))
-}
-
-function tickSimulation(room, state: GameState) {
-  // Advance simulation for all players using their latest inputs
-  for (const playerId in state.players) {
-    const player = state.players[playerId]!
-    player.position = simulateMovement(
-      player.position,
-      player.currentInput,
-      TICK_DELTA_TIME
-    )
-  }
-  state.tick++
-  broadcastSnapshot(room, state)
-}
-
-async function ensureTickScheduled(room) {
-  const existing = await room.storage.getAlarm()
-  const next = Date.now() + TICK_RATE_MS
-  if (existing === null || existing > next + 5) {
-    await room.storage.setAlarm(next)
-  }
-}
-
-export default {
-  async onConnect(connection, room) {
-    // ...spawn player, send init...
-    await ensureTickScheduled(room)
-  },
-
-  async onAlarm(room) {
-    const state = await loadState(room)
-    if (Object.keys(state.players).length === 0) return
-
-    tickSimulation(room, state)
-    await room.storage.put("state", state)
-    await room.storage.setAlarm(Date.now() + TICK_RATE_MS)
-  },
-}
-```
-
-**Why normalize state on load:** PartyKit storage persists across code changes. If you update the player schema (e.g., add `currentInput`), older stored players might be missing fields. `loadState()` normalizes/migrates stored shapes so the tick loop doesn't crash. In production, you'd version your schema; for a POC, normalization is sufficient.
-
-```typescript
-async function loadState(room): Promise<GameState> {
-  const raw = (await room.storage.get<unknown>("state")) ?? ({ players: {}, tick: 0 } satisfies GameState)
-  
-  // Migrate older stored shapes into the current schema
-  if (typeof raw !== "object" || raw === null) {
-    return { players: {}, tick: 0 }
-  }
-  
-  const r = raw as Record<string, unknown>
-  const rawPlayers = (r.players ?? {}) as Record<string, unknown>
-  const tick = typeof r.tick === "number" ? r.tick : 0
-  
-  const players: Record<string, PlayerState> = {}
-  for (const [id, maybePlayer] of Object.entries(rawPlayers)) {
-    if (typeof maybePlayer !== "object" || maybePlayer === null) continue
-    const p = maybePlayer as Record<string, unknown>
-    const pos = (p.position ?? {}) as Record<string, unknown>
-    
-    const position: Vec3 = {
-      x: typeof pos.x === "number" ? pos.x : 0,
-      y: typeof pos.y === "number" ? pos.y : 0.5,
-      z: typeof pos.z === "number" ? pos.z : 0,
-    }
-    
-    const currentInputRaw = p.currentInput as Record<string, unknown> | undefined
-    const currentInput: InputState = currentInputRaw &&
-      typeof currentInputRaw.w === "boolean" &&
-      typeof currentInputRaw.a === "boolean" &&
-      typeof currentInputRaw.s === "boolean" &&
-      typeof currentInputRaw.d === "boolean"
-        ? { w: currentInputRaw.w, a: currentInputRaw.a, s: currentInputRaw.s, d: currentInputRaw.d }
-        : DEFAULT_INPUT
-    
-    players[id] = {
-      id: typeof p.id === "string" ? p.id : id,
-      position,
-      rotation: typeof p.rotation === "number" ? p.rotation : 0,
-      lastProcessedInputSeq: typeof p.lastProcessedInputSeq === "number" ? p.lastProcessedInputSeq : 0,
-      currentInput,
-    }
-  }
-  
-  return { players, tick }
-}
-```
-
-Finally, add the `onClose` handler for disconnections:
-
-```typescript
-  async onClose(connection: PartyConnection, room) {
-    const state = await loadState(room)
-    delete state.players[connection.id]
-    
-    // Stop tick loop if room becomes empty
-    if (Object.keys(state.players).length === 0) {
-      await room.storage.setAlarm(Date.now() - 1) // Cancel alarm
-    }
-    
-    room.broadcast(JSON.stringify({
-      type: "player-left",
-      playerId: connection.id,
-    }))
-    
-    await room.storage.put("state", state)
-  },
-} satisfies PartyKitServer
-```
-
-The server is now the authoritative source of truth — it owns `GameState`, validates actions, and broadcasts updates to all clients. The fixed tick loop ensures all players advance at the same rate, and snapshots include reconciliation data (`lastProcessedInputSeq`) so clients can rewind and replay inputs correctly.
-
-The runnable POC implements **input-based sync** — clients send inputs (WASD keys) with sequence numbers, and the server runs an authoritative simulation at 20Hz. Clients predict locally and reconcile when server snapshots arrive. This is still a basic implementation: no collisions, no lag compensation, no client-side smoothing on correction beyond simple snap/lerp. But it demonstrates the core techniques: server authority, client-side prediction, and server reconciliation.
-
-#### Running the Server
-
-**Development (local):**
-
-```bash
-# Install PartyKit
-pnpm add partykit partysocket
-
-# Create partykit.json in project root
-echo '{"name": "echelon-multiplayer", "main": "party/main.ts"}' > partykit.json
-
-# Run locally (starts on localhost:1999)
-npx partykit dev
-```
-
-Your client connects to `localhost:1999` during development. Set the host in your environment:
-
-```bash
-# .env.local
-NEXT_PUBLIC_PARTYKIT_HOST=localhost:1999
-```
-
-**Deployment (production):**
-
-```bash
-# Deploy to Cloudflare (one command)
-npx partykit deploy
-```
-
-PartyKit outputs your production URL (e.g., `echelon-multiplayer.yourname.partykit.dev`). Update your production environment:
-
-```bash
-# .env.production
-NEXT_PUBLIC_PARTYKIT_HOST=echelon-multiplayer.yourname.partykit.dev
-```
-
-Your Next.js app deploys to Vercel as usual. The PartyKit server runs separately on Cloudflare — they communicate over WebSocket.
-
-### Step 2: Client Connection Hook
-
-A React hook to manage the WebSocket connection and state. <PerplexityLink query="react websocket hook pattern real time state" />
-
-This hook encapsulates all networking logic on the client side. It handles connection lifecycle, parses messages, updates state, provides a clean API for components. The hook returns connection state, all players, a function to send movement updates.
-
-**Why a custom hook:**
-- Separates networking concerns from UI components
-- Enables testing networking logic independently
-- Provides a consistent API multiple components can use
-- Handles all WebSocket event listeners in one place
-
-**Why Map vs array:**
-We use `Map` for O(1) lookups by player ID. Arrays require O(n) searches. With 2-4 players, arrays would work, but Maps scale better. The tradeoff: Maps require conversion to arrays for rendering (`Array.from(players.values())`). Worth it for the lookup performance.
-
-**Why immutable updates:**
-We create new Maps on each update to trigger React re-renders. Mutating the Map directly wouldn't trigger re-renders. The tradeoff: More allocations, but React's reconciliation handles this efficiently.
-
-Create `hooks/useMultiplayer.ts` with types and initial state:
-
-```typescript
-// hooks/useMultiplayer.ts
-import { useState, useMemo } from "react"
-import usePartySocket from "partysocket/react"
-
-interface Player {
-  id: string
-  position: { x: number; y: number; z: number }
-  rotation: number
-}
-
-interface MultiplayerState {
-  connected: boolean
-  playerId: string | null
-  players: Map<string, Player>
-  // Reconciliation state for local player
-  pendingInputs: Array<{ seq: number; dt: number; keys: { w: boolean; a: boolean; s: boolean; d: boolean } }>
-  lastAckSeq: number
-  authoritativeLocalState: { x: number; y: number; z: number } | null
-}
-
-export function useMultiplayer(roomId: string) {
-  const [state, setState] = useState<MultiplayerState>({
-    connected: false,
-    playerId: null,
-    players: new Map(),
-    pendingInputs: [],
-    lastAckSeq: 0,
-    authoritativeLocalState: null,
-  })
-```
-
-Set up the WebSocket connection with lifecycle handlers:
-
-```typescript
-  const socket = usePartySocket({
-    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST!,
-    room: roomId,
-    
-    onOpen() {
-      setState(prev => ({ ...prev, connected: true }))
-    },
-```
-
-Handle incoming messages — start with the `init` message:
-
-```typescript
-    onMessage(event) {
-      const data = JSON.parse(event.data)
-      
-      switch (data.type) {
-        case "init":
-          setState(prev => ({
-            ...prev,
-            playerId: data.playerId,
-            players: new Map(data.players.map((p: Player) => [p.id, p])),
-            // Reset reconciliation state on reconnect
-            pendingInputs: [],
-            lastAckSeq: 0,
-            authoritativeLocalState: null,
-          }))
-          break
-```
-
-Add handlers for player join/leave:
-
-```typescript
-        case "player-joined":
-          setState(prev => {
-            const players = new Map(prev.players)
-            players.set(data.player.id, data.player)
-            return { ...prev, players }
-          })
-          break
-          
-        case "player-left":
-          setState(prev => {
-            const players = new Map(prev.players)
-            players.delete(data.playerId)
-            return { ...prev, players }
-          })
-          break
-```
-
-Handle snapshots (authoritative state updates):
-
-```typescript
-        case "snapshot":
-          setState(prev => {
-            const players = new Map(prev.players)
-            const localPlayerSnapshot = data.players.find((p: any) => p.id === prev.playerId)
-
-            // Update all players from snapshot
-            for (const p of data.players) {
-              players.set(p.id, { id: p.id, position: p.position, rotation: p.rotation })
-            }
-
-            // Reconciliation for local player: extract acked seq, drop acknowledged inputs
-            if (localPlayerSnapshot && prev.playerId) {
-              const newAckSeq = localPlayerSnapshot.lastProcessedInputSeq
-              const remainingInputs = prev.pendingInputs.filter(
-                (input) => input.seq > newAckSeq
-              )
-
-              return {
-                ...prev,
-                players,
-                lastAckSeq: newAckSeq,
-                authoritativeLocalState: localPlayerSnapshot.position,
-                pendingInputs: remainingInputs,
-              }
-            }
-
-            return { ...prev, players }
-          })
-          break
-      }
-    },
-```
-
-Add disconnect handler and return the API:
-
-```typescript
-    onClose() {
-      setState(prev => ({ ...prev, connected: false }))
-    },
-  })
-  
-  const sendInput = (seq: number, dt: number, keys: { w: boolean; a: boolean; s: boolean; d: boolean }) => {
-    socket.send(JSON.stringify({ type: "input", seq, dt, keys }))
-
-    // Track pending inputs so we can reconcile when the next snapshot arrives
-    setState(prev => ({
-      ...prev,
-      pendingInputs: [...prev.pendingInputs, { seq, dt, keys }],
-    }))
-  }
-  
-  const playersArray = useMemo(
-    () => Array.from(state.players.values()),
-    [state.players]
-  )
-
-  return { ...state, playersArray, sendInput }
-}
-```
-
-The hook encapsulates all networking logic and provides a clean API: connection state, player list (`playersArray`), reconciliation state (`pendingInputs`, `lastAckSeq`, `authoritativeLocalState`), and a function to send inputs with sequence numbers.
-
-### Step 3: Game Scene with Player Rendering
-
-The React Three Fiber scene that renders all players. <PerplexityLink query="react three fiber multiplayer scene rendering players" />
-
-This component ties everything together. It uses the `useMultiplayer` hook to get connection state and player data, renders a 3D scene with React Three Fiber. The key insight: `LocalPlayer` and `RemotePlayer` handle movement differently. One is controlled locally (with prediction), the others are observed remotely (with interpolation).
-
-**Scene setup:**
-We use a simple scene with ambient and directional lighting, a ground plane for reference, OrbitControls to move the camera. The ground plane visualizes movement — players move on the XZ plane (horizontal), Y is up.
-
-**Why split LocalPlayer/RemotePlayer:**
-Your own player needs immediate feedback (prediction). Remote players need smooth interpolation. Mixing these concerns in one component breaks both. The split is fundamental — your character needs instant response, while others need smooth observation.
-
-**What breaks if we don't split:**
-If remote players used prediction, they'd jitter when server corrections arrive. If local player used interpolation, movement would feel laggy. The split ensures each player type uses the right technique.
-
-Create `components/MultiplayerScene.tsx`:
-
-```tsx
-// components/MultiplayerScene.tsx
-import { Canvas } from "@react-three/fiber"
-import { OrbitControls } from "@react-three/drei"
-import { useMultiplayer } from "@/hooks/useMultiplayer"
-import { LocalPlayer } from "./LocalPlayer"
-import { RemotePlayer } from "./RemotePlayer"
-
-export function MultiplayerScene({ roomId }: { roomId: string }) {
-  const {
-    connected,
-    playerId,
-    playersArray,
-    sendInput,
-    authoritativeLocalState,
-    lastAckSeq,
-    pendingInputs,
-  } = useMultiplayer(roomId)
-  
-  if (!connected) {
-    return <div>Connecting...</div>
-  }
-```
-
-Set up the 3D scene with lighting and ground:
-
-```tsx
-  return (
-    <Canvas camera={{ position: [0, 10, 10] }}>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} />
-      
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-        <planeGeometry args={[20, 20]} />
-        <meshStandardMaterial color="#333" />
-      </mesh>
-```
-
-Render players — split local vs remote:
-
-```tsx
-      {playersArray.map(player => (
-        player.id === playerId ? (
-          <LocalPlayer 
-            key={player.id}
-            initialPosition={player.position}
-            onInput={sendInput}
-            authoritativeState={authoritativeLocalState}
-            lastAckSeq={lastAckSeq}
-            pendingInputs={pendingInputs}
-          />
-        ) : (
-          <RemotePlayer
-            key={player.id}
-            player={player}
-          />
-        )
-      ))}
-      
-      <OrbitControls />
-    </Canvas>
-  )
-}
-```
-
-**Key distinction:** `LocalPlayer` handles input and prediction (you control it), while `RemotePlayer` interpolates from network updates (you observe it). This separation is fundamental — your character needs immediate feedback, while others need smooth interpolation.
-
-### Step 4: Local Player with Prediction and Reconciliation
-
-The local player predicts movement immediately, then sends inputs to the server with a monotonically increasing sequence number. When a snapshot arrives, we reconcile: snap to the authoritative position, then replay any un-acked inputs. This implements the prediction + reconciliation pattern described in [Concept 2](#concept-2-client-side-prediction). <PerplexityLink query="client side prediction server reconciliation explained" />
-
-Create `components/LocalPlayer.tsx` with setup:
-
-```tsx
-// components/LocalPlayer.tsx
-import { useEffect, useRef } from "react"
-import { useFrame } from "@react-three/fiber"
-import * as THREE from "three"
-import { simulateMovement } from "./movement" // Shared with server
-import type { InputState, Vec3 } from "./movement"
-
-interface LocalPlayerProps {
-  initialPosition: { x: number; y: number; z: number }
-  onInput: (seq: number, dt: number, keys: InputState) => void
-  authoritativeState: { x: number; y: number; z: number } | null
-  lastAckSeq: number
-  pendingInputs: Array<{ seq: number; dt: number; keys: InputState }>
-}
-
-export function LocalPlayer({
-  initialPosition,
-  onInput,
-  authoritativeState,
-  lastAckSeq,
-  pendingInputs,
-}: LocalPlayerProps) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const positionRef = useRef(new THREE.Vector3(initialPosition.x, 0.5, initialPosition.z))
-  const inputRef = useRef<InputState>({ w: false, a: false, s: false, d: false })
-  const lastSentRef = useRef(0)
-  const seqRef = useRef(0)
-  const lastReconciledSeqRef = useRef(0)
-```
-
-Capture input (WASD) with keydown/keyup handlers:
-
-```tsx
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase()
-      if (k === "w" || k === "a" || k === "s" || k === "d") {
-        e.preventDefault()
-        inputRef.current[k] = true
-      }
-    }
-    const onKeyUp = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase()
-      if (k === "w" || k === "a" || k === "s" || k === "d") {
-        inputRef.current[k] = false
-      }
-    }
-    document.addEventListener("keydown", onKeyDown)
-    document.addEventListener("keyup", onKeyUp)
-    return () => {
-      document.removeEventListener("keydown", onKeyDown)
-      document.removeEventListener("keyup", onKeyUp)
-    }
-  }, [])
-```
-
-Prediction + input sending in `useFrame`. Use a deterministic movement integrator (shared with the server) so client/server math stays aligned:
-
-```tsx
-  useFrame((_, delta) => {
-    if (!meshRef.current) return
-
-    // Client-side prediction: simulate movement locally
-    const predictedPosition = simulateMovement(
-      {
-        x: positionRef.current.x,
-        y: positionRef.current.y,
-        z: positionRef.current.z,
-      },
-      inputRef.current,
-      delta
-    )
-
-    positionRef.current.set(
-      predictedPosition.x,
-      predictedPosition.y,
-      predictedPosition.z
-    )
-    meshRef.current.position.copy(positionRef.current)
-
-    // Send inputs to server at ~20Hz
-    const now = performance.now()
-    if (now - lastSentRef.current > 50) {
-      seqRef.current++
-      onInput(seqRef.current, delta, { ...inputRef.current })
-      lastSentRef.current = now
-    }
-  })
-```
-
-Reconciliation: when a snapshot arrives, snap to the authoritative state and replay any un-acked inputs:
-
-```tsx
-  useEffect(() => {
-    if (!authoritativeState || lastAckSeq === lastReconciledSeqRef.current) return
-
-    // Snap to authoritative position
-    let reconciledPos: Vec3 = {
-      x: authoritativeState.x,
-      y: authoritativeState.y,
-      z: authoritativeState.z,
-    }
-
-    // Replay all pending inputs that haven't been acknowledged
-    for (const input of pendingInputs) {
-      if (input.seq > lastAckSeq) {
-        reconciledPos = simulateMovement(reconciledPos, input.keys, input.dt)
-      }
-    }
-
-    positionRef.current.set(
-      reconciledPos.x,
-      reconciledPos.y,
-      reconciledPos.z
-    )
-    if (meshRef.current) {
-      meshRef.current.position.copy(positionRef.current)
-    }
-
-    lastReconciledSeqRef.current = lastAckSeq
-  }, [authoritativeState?.x, authoritativeState?.y, authoritativeState?.z, lastAckSeq, pendingInputs])
-```
-
-Render the mesh:
-
-```tsx
-  return (
-    <mesh ref={meshRef} position={[initialPosition.x, 0.5, initialPosition.z]}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="blue" />
-    </mesh>
-  )
-}
-```
-
-**Key patterns:** 
-- Movement updates immediately (prediction) using the same deterministic integrator as the server (`simulateMovement`).
-- Inputs sent with sequence numbers at ~20Hz.
-- On snapshot arrival: snap to authoritative position, drop acknowledged inputs (filtered in the hook), replay remaining inputs.
-- This ensures the local player stays in sync with the server while feeling instant.
-
-### Step 5: Remote Player with Snapshot Interpolation
-
-Remote players use a small **snapshot buffer** and render slightly "in the past" so we can interpolate between two known snapshots (instead of lerping toward the latest and stuttering at 20Hz). This is the standard approach for smooth remote rendering. <PerplexityLink query="snapshot interpolation buffer multiplayer games" />
-
-Create `components/RemotePlayer.tsx`:
-
-```tsx
-// components/RemotePlayer.tsx
-import { useEffect, useRef } from "react"
-import { useFrame } from "@react-three/fiber"
-import * as THREE from "three"
-
-interface Player {
-  id: string
-  position: { x: number; y: number; z: number }
-  rotation: number
-}
-
-type Snapshot = {
-  position: THREE.Vector3
-  timestamp: number
-}
-
-const BUFFER_DELAY_MS = 100 // Render ~2 ticks behind (smooths jitter)
-const MAX_BUFFER_SIZE = 8
-
-export function RemotePlayer({ player }: { player: Player }) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const snapshotBufferRef = useRef<Snapshot[]>([])
-```
-
-Push a snapshot into the buffer whenever `player.position` changes (snapshots arrive ~20Hz):
-
-```tsx
-  // Buffer snapshots using the same clock domain as the render loop (performance.now())
-  useEffect(() => {
-    const timestamp = performance.now()
-    const snapshot: Snapshot = {
-      position: new THREE.Vector3(player.position.x, 0.5, player.position.z),
-      timestamp,
-    }
-
-    snapshotBufferRef.current.push(snapshot)
-    // Keep buffer size limited
-    if (snapshotBufferRef.current.length > MAX_BUFFER_SIZE) {
-      snapshotBufferRef.current.shift()
-    }
-  }, [player.position.x, player.position.z])
-```
-
-Interpolate between the two snapshots around `renderTime = now - BUFFER_DELAY_MS`:
-
-```tsx
-  useFrame(() => {
-    if (!meshRef.current) return
-
-    const buffer = snapshotBufferRef.current
-    if (buffer.length === 0) return
-
-    const now = performance.now()
-    const renderTime = now - BUFFER_DELAY_MS
-
-    // Find the two snapshots to interpolate between
-    let prev: Snapshot | null = null
-    let next: Snapshot | null = null
-
-    for (const snap of buffer) {
-      if (snap.timestamp <= renderTime) {
-        prev = snap
-      } else {
-        next = snap
-        break
-      }
-    }
-
-    // If we have both prev and next, interpolate at renderTime
-    if (prev && next) {
-      const timeDiff = next.timestamp - prev.timestamp
-      const t = timeDiff > 0 ? (renderTime - prev.timestamp) / timeDiff : 0
-      const clampedT = Math.max(0, Math.min(1, t))
-
-      const interpolated = new THREE.Vector3().lerpVectors(
-        prev.position,
-        next.position,
-        clampedT
-      )
-      meshRef.current.position.copy(interpolated)
-    } else if (prev) {
-      // Only have previous, ease toward it
-      meshRef.current.position.lerp(prev.position, 0.1)
-    }
-  })
-```
-
-Render the mesh:
-
-```tsx
-  return (
-    <mesh ref={meshRef} position={[player.position.x, 0.5, player.position.z]}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="red" />
-    </mesh>
-  )
-}
-```
-
-**Why a buffer delay:**
-Rendering ~100ms behind gives us two snapshots to interpolate between, removing most "20Hz stepping" without making teammates feel mushy. When jitter increases, increasing the delay to ~150ms is often a better lever than adjusting lerp factors.
-
-**What's still left rough:**
-
-**What was left rough:**
-We do keep a small snapshot buffer and interpolate (rendering slightly “in the past”).
-
-What’s still left rough:
-- No server↔client clock sync (we buffer using local arrival time, which is fine for a POC but not fully “textbook”).
-- No extrapolation when packets arrive late (high latency causes visible hitches).
-
----
-
-## What Changed
-
-After building and testing, we discovered:
-
-1. **Latency tolerance:** Below 100ms RTT feels instant. Above 200ms requires aggressive prediction. At 150ms, slight delay is acceptable.
-2. **Update frequency:** 20Hz is sufficient for movement sync. Higher frequencies (30-60Hz) improve smoothness but increase bandwidth. For this POC, 20Hz works.
-3. **Interpolation quality:** A small snapshot buffer + ~100ms render delay removes most “20Hz stepping” without making teammates feel mushy. When jitter increases, increasing the delay to ~150ms is often a better lever than cranking lerp factors.
-4. **Server tick reliability:** PartyKit wants recurring work scheduled via `room.storage.setAlarm()` + `onAlarm`. `setInterval` is not the right foundation for a room tick.
-5. **State recovery:** PartyKit storage persists across reconnects *and* code evolution. We had to add a tiny state migration so older stored player shapes wouldn’t crash the tick loop.
-
-These learnings inform every subsequent POC:
-- **POC 1 (Destruction):** Physics events need reliable sync. Can we use the same 20Hz pattern? <PerplexityLink query="syncing physics destruction multiplayer games" />
-- **POC 2 (Heat):** Server-authoritative heat needs to feel responsive. Can we predict locally and reconcile?
-- **POC 3 (AI):** Guard positions need sync. Can we reduce bandwidth with delta compression?
-- **POC 4 (Objectives):** Objective interactions need precise timing. How do we handle race conditions?
-
-## Instrumentation
-
-We need to measure what matters: <PerplexityLink query="measuring network latency jitter multiplayer games" />
-
-```typescript
-// Metrics to track
-interface NetworkMetrics {
-  rtt: number           // Round-trip time in ms
-  jitter: number        // RTT variance
-  updateRate: number    // Updates received per second
-  bytesPerSecond: number
-  disconnects: number
-  reconnectTime: number // ms to successfully reconnect
-}
-```
-
-Next: a debug overlay for these metrics, plus aggregated logs.
-
-## What Remains Open
-
-What we deferred and why:
-
-- **Delta compression:** Sending only what changed cuts bandwidth dramatically at scale. We send full snapshots every time — works for 2-4 players, won't scale beyond that. <PerplexityLink query="delta compression vs full snapshots game networking" />
-- **Extrapolation:** Predicting where remote players are heading hides latency when packets arrive late. We don't extrapolate, so high latency or packet loss causes visible hitches. <PerplexityLink query="extrapolation dead reckoning multiplayer games" />
-- **Network diagnostics:** RTT, packet loss, tick rate — essential for debugging. We have no overlay yet, so diagnosing network issues means reading logs. <PerplexityLink query="network debug overlay multiplayer games" />
-- **Lag compensation:** Server doesn't rewind time for hit detection. Not needed for movement-only POC, but essential for combat or interaction systems.
-
-
-## What's Next
-
-This POC is complete: two players move smoothly in a shared space.
-
-Up next, we use this foundation to answer the next question: **[POC 1: Destruction + Multiplayer Sync](/poc/1-destruction-multiplayer)** — can we sync physics events reliably at 20Hz?
-
-**Stretch goals** (if you want to push this POC further):
-- Build a debug overlay showing RTT, jitter, tick rate, and pending input count
-- Test with artificial latency (Chrome DevTools throttling) to find breaking points
-- Add extrapolation for remote players to handle late packets gracefully
+Now that we understand the tradeoffs, we can move on to building it.
 
 ## Resources
 
-**Tutorials:**
-- [Wawa Sensei: Multiplayer R3F with Socket.io](https://wawasensei.dev/tuto/build-a-multiplayer-game-with-react-three-fiber-and-socket-io) — 7-part series building a Sims-like multiplayer game
-- [Maya Nedeljković Batić: R3F + WebSocket Game](https://www.maya-ndljk.com/talks/r3f-websocket-game) — Conference talk with code
-
-**Foundational Reading:**
 - [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) (Nov 28, 2014) — Essential concepts
 - [Gaffer on Games: State Synchronization](https://gafferongames.com/post/state_synchronization/) (Jan 5, 2015) — Detailed implementation patterns
 - [Valve: Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — Production-grade patterns
 - [Gabriel Gambetta: Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — Interactive explanations with diagrams
-
-**Libraries:**
-- [PartyKit](https://partykit.io/) — Edge-deployed WebSocket server (backed by Cloudflare Durable Objects)
-- [Playroom Kit](https://joinplayroom.com/) — Multiplayer React hooks (alternative approach)
-- [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) — Physics, which we'll need to sync in POC 1
