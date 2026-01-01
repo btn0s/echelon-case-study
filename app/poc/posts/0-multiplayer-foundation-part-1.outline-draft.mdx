@@ -8,7 +8,9 @@ export const metadata = {
 
 Before destructible walls, heat systems, or Super encounters, we need the boring thing: two players in the same world, moving smoothly.
 
-This POC is the minimum networking foundation for co-op movement: keep players in agreement about what’s true, while keeping controls feeling immediate.
+This POC is the smallest networking foundation for co-op movement: keep players in agreement about what’s true, while keeping controls feeling immediate.
+
+If we can’t do *this*, everything else (AI, objectives, destruction) becomes a pile of edge cases.
 
 ---
 
@@ -21,9 +23,9 @@ Multiplayer feels hard for two reasons. They’re related, but not the same prob
 
 In multiplayer, multiple machines simulate the “same” world.
 
-They will diverge.
+They’ll diverge. Always.
 
-Inputs arrive at different times. Floating point math isn’t perfectly deterministic across machines. Randomness, physics resolution order, and frame rate differences compound. If each player trusts their local simulation as truth, you don’t have *a* world. You have multiple worlds that only look similar at first.
+Inputs arrive at different times. <PerplexityLink query="floating point determinism multiplayer games" variant="inline">Floating point math</PerplexityLink> isn’t perfectly deterministic across machines. Randomness, physics resolution order, and frame rate differences compound. If each player trusts their local simulation as truth, you don’t have *a* world. You have multiple worlds that only look similar at first.
 
 Here’s the smallest failure:
 
@@ -32,13 +34,15 @@ Here’s the smallest failure:
 - Both simulations produce a “reasonable” result.
 - Now the crate is in two places.
 
+That’s what “desync” really is. Not lag. Disagreement.
+
 Get it wrong, and you don’t get “a bit of jank.” You get a trust break: players can’t coordinate because they’re reacting to different realities.
 
 ### Problem 2: Latency (time to agreement)
 
 Even if we pick a single truth, everyone still has to *learn* that truth over the network.
 
-Your input has to travel to the machine deciding truth and back. That round trip is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
+Your input has to travel to the machine deciding truth and back. That round trip is <PerplexityLink query="network latency in multiplayer games explained" variant="inline">latency</PerplexityLink> (or **RTT** — round-trip time).
 
 **Try it for yourself** — click the demo, hold WASD, and flip between 0ms, 50ms, 100ms, 150ms, 200ms.
 
@@ -67,9 +71,9 @@ Each solution maps to a problem above. This section stays conceptual. The next s
 
 ### Solution to Divergence: Authority
 
-**Authority** is the rule that decides what counts as truth when simulations disagree. <PerplexityLink query="authoritative server game networking definition" />
+**Authority** is the rule that <PerplexityLink query="authoritative server game networking definition" variant="inline">decides what counts as truth</PerplexityLink> when simulations disagree.
 
-In practice that means a single machine is “the authority” for some slice of state. When there’s a conflict, the authority wins.
+In practice, it means a single machine is “the authority” for some slice of state. When there’s a conflict, the authority wins.
 
 Terminology we’ll use:
 
@@ -94,7 +98,7 @@ This trades one failure mode (sluggish controls) for another (corrections). The 
 
 You can’t predict other players. You don’t know what they’ll do.
 
-Instead, the authority sends snapshots periodically. Clients render other entities by interpolating between snapshots: “smooth the gaps between known points.” <PerplexityLink query="interpolation snapshots multiplayer games how it works" />
+Instead, the authority sends snapshots periodically. Clients render other entities by <PerplexityLink query="interpolation snapshots multiplayer games how it works" variant="inline">interpolating</PerplexityLink> between snapshots: “smooth the gaps between known points.”
 
 <InterpolationDemo />
 
@@ -108,23 +112,23 @@ The rule of thumb:
 <Anchor id="understanding-the-options" />
 ## Applied to Echelon
 
-Now we pick where authority lives, what authority owns, and what clients are allowed to fake for responsiveness.
+Now we make this real for Echelon. We pick where authority lives, what authority owns, and what clients are allowed to fake for responsiveness.
 
 ### Where does authority live?
 
-There are three common shapes for multiplayer networking. Each makes different tradeoffs around where authority lives and what breaks first. <PerplexityLink query="peer to peer vs listen server vs dedicated server tradeoffs" />
+There are three common shapes for multiplayer networking. Each makes different tradeoffs around where authority lives and what breaks first. <PerplexityLink query="peer to peer vs listen server vs dedicated server tradeoffs" variant="callout">Compare the three shapes</PerplexityLink>.
 
 #### Option 1: Peer-to-Peer (P2P)
 
 No central authority. Everyone talks to everyone.
 
-What breaks first: disagreement. When two peers simulate differently, you need negotiation, rollback, or a conflict-resolution scheme. Complexity rises fast.
+What breaks first: disagreement. When two peers simulate differently, you need negotiation, <PerplexityLink query="rollback netcode explained" variant="inline">rollback</PerplexityLink>, or a conflict-resolution scheme. Complexity rises fast.
 
 #### Option 2: Host-Authoritative (Listen Server)
 
 One player hosts and also acts as the authoritative machine.
 
-What breaks first: the host. If they disconnect, the session ends (unless you implement migration). If their upload/CPU can’t keep up, everyone feels it.
+What breaks first: the host. If they disconnect, the session ends (unless you implement <PerplexityLink query="host migration listen server how it works" variant="inline">host migration</PerplexityLink>). If their upload/CPU can’t keep up, everyone feels it.
 
 #### Option 3: Dedicated Server
 
@@ -136,7 +140,7 @@ What breaks first: shipping/operating servers becomes the work (infra, cost, dep
 
 Echelon is co-op. The failure cost isn’t “competitive fairness.” The failure cost is shared-state divergence: heat, objectives, AI, and destruction must stay consistent or the game stops making sense.
 
-**Default: host-authoritative.** One source of truth, no infrastructure to stand up. We accept the host as the bottleneck and single point of failure. <PerplexityLink query="listen server host authoritative co-op games why it works" />
+**Default: host-authoritative.** One source of truth, no infrastructure to stand up. We accept the host as the bottleneck and single point of failure. <PerplexityLink query="listen server host authoritative co-op games why it works" variant="callout">Why listen servers work for co-op</PerplexityLink>.
 
 **Out of scope (for now):** matchmaking at scale, dedicated infra, competitive anti-cheat.
 

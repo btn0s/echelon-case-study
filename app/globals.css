@@ -303,7 +303,7 @@ pre {
 }
 
 .prose table {
-  @apply w-full border-collapse my-4;
+  @apply w-full border-collapse my-0! border;
 }
 
 .prose thead {
