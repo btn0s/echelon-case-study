@@ -1,0 +1,186 @@
+export const metadata = {
+  title: "POC 0: Multiplayer Foundation (Draft)",
+  description:
+    "A primer on divergence, latency, and the techniques we’ll use in Echelon: authority, prediction, and interpolation.",
+}
+
+## The Problem We're Solving
+
+Before destructible walls, heat systems, or Super encounters, we need the boring thing: two players in the same world, moving smoothly.
+
+This POC is the minimum networking foundation for co-op movement: keep players in agreement about what’s true, while keeping controls feeling immediate.
+
+---
+
+<Anchor id="why-multiplayer-is-hard" />
+## Why Multiplayer is Hard
+
+Multiplayer feels hard for two reasons. They’re related, but not the same problem.
+
+### Problem 1: Divergence (state sync)
+
+In multiplayer, multiple machines simulate the “same” world.
+
+They will diverge.
+
+Inputs arrive at different times. Floating point math isn’t perfectly deterministic across machines. Randomness, physics resolution order, and frame rate differences compound. If each player trusts their local simulation as truth, you don’t have *a* world. You have multiple worlds that only look similar at first.
+
+Here’s the smallest failure:
+
+- Player A pushes a crate left.
+- Player B pushes the same crate right.
+- Both simulations produce a “reasonable” result.
+- Now the crate is in two places.
+
+Get it wrong, and you don’t get “a bit of jank.” You get a trust break: players can’t coordinate because they’re reacting to different realities.
+
+### Problem 2: Latency (time to agreement)
+
+Even if we pick a single truth, everyone still has to *learn* that truth over the network.
+
+Your input has to travel to the machine deciding truth and back. That round trip is **latency** (or **RTT** — round-trip time). <PerplexityLink query="network latency in multiplayer games explained" />
+
+**Try it for yourself** — click the demo, hold WASD, and flip between 0ms, 50ms, 100ms, 150ms, 200ms.
+
+<LatencyDemo />
+
+If you felt “dead air” between intent and motion, that’s latency showing up in your hands.
+
+| Latency | Experience |
+|---------|------------|
+| 50ms | Movement feels immediate |
+| Below 100ms | Feels instant |
+| 150ms | Slight delay |
+| 200ms | Requires aggressive techniques; without them, unplayable |
+| 300ms | Noticeable lag |
+
+So we’re boxed in:
+
+- If we wait for agreement, input feels sluggish.
+- If we don’t wait, clients can be wrong.
+
+---
+
+## The Solutions (Concepts You Can Use)
+
+Each solution maps to a problem above. This section stays conceptual. The next section shows how we apply it to Echelon.
+
+### Solution to Divergence: Authority
+
+**Authority** is the rule that decides what counts as truth when simulations disagree. <PerplexityLink query="authoritative server game networking definition" />
+
+In practice that means a single machine is “the authority” for some slice of state. When there’s a conflict, the authority wins.
+
+Terminology we’ll use:
+
+- **Authority**: the rule/process for resolving disagreement
+- **Authoritative machine**: the computer running that rule
+- **Host-authoritative**: the host player’s machine is the authoritative machine (common in co-op)
+- **Dedicated server**: a separate machine is the authoritative machine (common at scale / competitive)
+
+Authority isn’t the whole system. It’s the foundation that makes agreement possible.
+
+### Solution to Latency (for you): Client-Side Prediction
+
+**Prediction** is letting the client act immediately, based on what it expects the authority will decide.
+
+You move now. The authority confirms later. If you were wrong, you correct.
+
+This trades one failure mode (sluggish controls) for another (corrections). The goal is to make corrections rare and, when they happen, visually cheap.
+
+<PredictionDemo />
+
+### Solution to Latency (for others): Interpolation
+
+You can’t predict other players. You don’t know what they’ll do.
+
+Instead, the authority sends snapshots periodically. Clients render other entities by interpolating between snapshots: “smooth the gaps between known points.” <PerplexityLink query="interpolation snapshots multiplayer games how it works" />
+
+<InterpolationDemo />
+
+The rule of thumb:
+
+- Predict yourself
+- Interpolate everyone else
+
+---
+
+<Anchor id="understanding-the-options" />
+## Applied to Echelon
+
+Now we pick where authority lives, what authority owns, and what clients are allowed to fake for responsiveness.
+
+### Where does authority live?
+
+There are three common shapes for multiplayer networking. Each makes different tradeoffs around where authority lives and what breaks first. <PerplexityLink query="peer to peer vs listen server vs dedicated server tradeoffs" />
+
+#### Option 1: Peer-to-Peer (P2P)
+
+No central authority. Everyone talks to everyone.
+
+What breaks first: disagreement. When two peers simulate differently, you need negotiation, rollback, or a conflict-resolution scheme. Complexity rises fast.
+
+#### Option 2: Host-Authoritative (Listen Server)
+
+One player hosts and also acts as the authoritative machine.
+
+What breaks first: the host. If they disconnect, the session ends (unless you implement migration). If their upload/CPU can’t keep up, everyone feels it.
+
+#### Option 3: Dedicated Server
+
+A separate machine runs the authority.
+
+What breaks first: shipping/operating servers becomes the work (infra, cost, deployment, ops).
+
+### Decision (for now)
+
+Echelon is co-op. The failure cost isn’t “competitive fairness.” The failure cost is shared-state divergence: heat, objectives, AI, and destruction must stay consistent or the game stops making sense.
+
+**Default: host-authoritative.** One source of truth, no infrastructure to stand up. We accept the host as the bottleneck and single point of failure. <PerplexityLink query="listen server host authoritative co-op games why it works" />
+
+**Out of scope (for now):** matchmaking at scale, dedicated infra, competitive anti-cheat.
+
+### What does authority own vs what do clients fake?
+
+Authority should own shared state that affects coordination:
+
+- Objective state
+- Heat levels
+- AI decisions and positions
+- Destruction results
+
+Clients should be allowed to fake responsiveness where the authority can later correct safely:
+
+- Your own movement
+- Visual feedback (effects, animations, UI)
+
+<AccordionSection title="Why never trust the client (even in co-op)" value="trust">
+
+Even in co-op, trusting the client is a shortcut that tends to become permanent.
+
+The pattern:
+
+1. Client sends intent (“I’m interacting with the terminal”)
+2. Authority validates (distance, cooldowns, rules)
+3. Authority runs the state change (timers, completion, rewards)
+4. Authority broadcasts the result
+
+</AccordionSection>
+
+---
+
+## Conclusion
+
+Multiplayer breaks because simulations diverge, and agreement arrives late.
+
+Authority solves divergence. Prediction and interpolation make latency tolerable.
+
+Part 2 turns these concepts into an implementation.
+
+## Resources
+
+- [Gaffer on Games: Networked Physics](https://gafferongames.com/post/introduction_to_networked_physics/) (Nov 28, 2014) — Essential concepts
+- [Gaffer on Games: State Synchronization](https://gafferongames.com/post/state_synchronization/) (Jan 5, 2015) — Detailed implementation patterns
+- [Valve: Source Multiplayer Networking](https://developer.valvesoftware.com/wiki/Source_Multiplayer_Networking) — Production-grade patterns
+- [Gabriel Gambetta: Fast-Paced Multiplayer](https://www.gabrielgambetta.com/client-server-game-architecture.html) — Interactive explanations with diagrams
+
