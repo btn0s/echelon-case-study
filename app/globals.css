@@ -131,11 +131,15 @@
   content: "";
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: oklch(0 0 0 / 0.4);
   pointer-events: none;
   z-index: 30;
   transition: opacity 0.2s ease-in-out;
   opacity: 0%;
+}
+
+.dark #main-content::before {
+  background: oklch(1 0 0 / 0.1);
 }
 
 #main-content:has([data-game-container][data-active]:not([data-no-overlay]))::before {
@@ -218,7 +222,7 @@
 }
 
 .prose .anchor:after {
-  @apply text-neutral-300 dark:text-neutral-700;
+  @apply text-muted-foreground;
   content: '#';
 }
 
@@ -227,12 +231,12 @@
 }
 
 .prose pre {
-  @apply bg-neutral-50 dark:bg-neutral-950 rounded-lg overflow-x-auto border border-neutral-200 dark:border-neutral-800 py-2 px-3 text-sm;
+  @apply bg-card rounded-lg overflow-x-auto border border-border py-2 px-3 text-sm;
   color: var(--foreground);
 }
 
 .prose code {
-  @apply px-1 py-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-900;
+  @apply px-1 py-0.5 rounded-lg bg-muted;
   color: var(--foreground);
 }
 
@@ -307,17 +311,17 @@ pre {
 }
 
 .prose thead {
-  @apply border-b border-neutral-200 dark:border-neutral-800;
+  @apply border-b border-border;
 }
 
 .prose th {
-  @apply px-4 py-2 text-left font-medium text-neutral-900 dark:text-neutral-100;
+  @apply px-4 py-2 text-left font-medium text-foreground;
 }
 
 .prose td {
-  @apply px-4 py-2 border-b border-neutral-100 dark:border-neutral-900 text-neutral-700 dark:text-neutral-300;
+  @apply px-4 py-2 border-b border-border text-muted-foreground;
 }
 
 .prose tbody tr:hover {
-  @apply bg-neutral-50 dark:bg-neutral-900/50;
+  @apply bg-muted/50;
 }
