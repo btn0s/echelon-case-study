@@ -124,6 +124,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  ::selection {
+    @apply bg-foreground! text-background!;
+  }
 }
 
 /* Dim the main POC content when the interactive demo is focused */
@@ -307,19 +310,44 @@ pre {
 }
 
 .prose table {
-  @apply w-full border-collapse my-0! border;
+  @apply w-full border-separate my-0! rounded-sm border border-border shadow-sm overflow-hidden;
+  border-spacing: 0;
 }
 
 .prose thead {
-  @apply border-b border-border;
+  @apply border-b border-border bg-muted;
 }
 
 .prose th {
-  @apply px-4 py-2 text-left font-medium text-foreground;
+  @apply px-4 py-2 text-left font-medium text-foreground border-r border-border;
+}
+
+.prose th:first-child {
+  @apply rounded-tl-sm;
+}
+
+.prose th:last-child {
+  @apply rounded-tr-sm border-r-0;
 }
 
 .prose td {
-  @apply px-4 py-2 border-b border-border text-muted-foreground;
+  @apply px-4 py-2 border-b border-r border-border text-muted-foreground;
+}
+
+.prose td:last-child {
+  @apply border-r-0;
+}
+
+.prose tbody tr:last-child td:first-child {
+  @apply rounded-bl-sm;
+}
+
+.prose tbody tr:last-child td:last-child {
+  @apply rounded-br-sm;
+}
+
+.prose tbody tr:last-child td {
+  @apply border-b-0;
 }
 
 .prose tbody tr:hover {

@@ -12,6 +12,10 @@ This POC is the smallest networking foundation for co-op movement: keep players 
 
 If we can’t do *this*, everything else (AI, objectives, destruction) becomes a pile of edge cases.
 
+#### Learn more
+
+- <PerplexityLink query="history of multiplayer game networking quake half-life source engine gaffer ggpo" variant="callout">History of multiplayer games</PerplexityLink>
+
 ---
 
 <Anchor id="why-multiplayer-is-hard" />
@@ -34,9 +38,15 @@ Here’s the smallest failure:
 - Both simulations produce a “reasonable” result.
 - Now the crate is in two places.
 
-That’s what “desync” really is. Not lag. Disagreement.
+That’s what <PerplexityLink query="desync multiplayer games what it is causes" variant="inline">desync</PerplexityLink> really is. Not lag. Disagreement.
 
 Get it wrong, and you don’t get “a bit of jank.” You get a trust break: players can’t coordinate because they’re reacting to different realities.
+
+#### Learn more
+
+- <PerplexityLink query="lockstep networking determinism vs state sync tradeoffs" variant="callout">Lockstep vs state sync (tradeoffs)</PerplexityLink>
+- <PerplexityLink query="deterministic physics multiplayer games why hard" variant="callout">Determinism in physics sims (why it’s hard)</PerplexityLink>
+- <PerplexityLink query="floating point determinism cross platform game networking" variant="callout">Floating point determinism across machines</PerplexityLink>
 
 ### Problem 2: Latency (time to agreement)
 
@@ -63,6 +73,14 @@ So we’re boxed in:
 - If we wait for agreement, input feels sluggish.
 - If we don’t wait, clients can be wrong.
 
+One more gotcha: steady latency is manageable. <PerplexityLink query="network jitter multiplayer games feel worse than ping" variant="inline">Jitter</PerplexityLink> (latency variation) is what makes movement feel unstable.
+
+#### Learn more
+
+- <PerplexityLink query="tick rate vs update rate vs frame rate multiplayer networking" variant="callout">Tick rate vs update rate vs frame rate</PerplexityLink>
+- <PerplexityLink query="network jitter buffer multiplayer games interpolation buffer" variant="callout">Jitter buffers and render delay</PerplexityLink>
+- <PerplexityLink query="packet loss multiplayer games prediction interpolation strategies" variant="callout">Packet loss: what breaks and how games cope</PerplexityLink>
+
 ---
 
 ## The Solutions (Concepts You Can Use)
@@ -88,9 +106,11 @@ Authority isn’t the whole system. It’s the foundation that makes agreement p
 
 **Prediction** is letting the client act immediately, based on what it expects the authority will decide.
 
-You move now. The authority confirms later. If you were wrong, you correct.
+You move now. The authority confirms later. If you were wrong, you correct (often called <PerplexityLink query="client-side prediction server reconciliation input buffer replay" variant="inline">server reconciliation</PerplexityLink>).
 
 This trades one failure mode (sluggish controls) for another (corrections). The goal is to make corrections rare and, when they happen, visually cheap.
+
+When it goes wrong, you feel it as <PerplexityLink query="rubber banding smoothing reconciliation techniques" variant="inline">rubber-banding</PerplexityLink>.
 
 <PredictionDemo />
 
@@ -123,6 +143,8 @@ There are three common shapes for multiplayer networking. Each makes different t
 No central authority. Everyone talks to everyone.
 
 What breaks first: disagreement. When two peers simulate differently, you need negotiation, <PerplexityLink query="rollback netcode explained" variant="inline">rollback</PerplexityLink>, or a conflict-resolution scheme. Complexity rises fast.
+
+Also: <PerplexityLink query="NAT traversal games hole punching STUN TURN" variant="inline">NAT traversal</PerplexityLink> tends to be the first practical wall you hit in the real world.
 
 #### Option 2: Host-Authoritative (Listen Server)
 
@@ -158,18 +180,11 @@ Clients should be allowed to fake responsiveness where the authority can later c
 - Your own movement
 - Visual feedback (effects, animations, UI)
 
-<AccordionSection title="Why never trust the client (even in co-op)" value="trust">
+#### Learn more
 
-Even in co-op, trusting the client is a shortcut that tends to become permanent.
-
-The pattern:
-
-1. Client sends intent (“I’m interacting with the terminal”)
-2. Authority validates (distance, cooldowns, rules)
-3. Authority runs the state change (timers, completion, rewards)
-4. Authority broadcasts the result
-
-</AccordionSection>
+- <PerplexityLink query="never trust the client authoritative server validation patterns" variant="callout">Never trust the client (validation patterns)</PerplexityLink>
+- <PerplexityLink query="authoritative server validate intent vs outcome multiplayer games" variant="callout">Intent vs outcome: what clients can say</PerplexityLink>
+- <PerplexityLink query="game networking cheating prevention authoritative server basics" variant="callout">Cheat prevention basics in an authoritative model</PerplexityLink>
 
 ---
 
