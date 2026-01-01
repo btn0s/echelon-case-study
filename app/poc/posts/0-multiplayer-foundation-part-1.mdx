@@ -102,7 +102,20 @@ Terminology we’ll use:
 
 Authority isn’t the whole system. It’s the foundation that makes agreement possible.
 
-### Solution to Latency (for you): Client-Side Prediction
+### Solution to Latency: Local simulation
+
+Once you have authority, you hit the second problem: you can’t wait for the network on every input.
+
+So clients run a **local simulation**: a fast, best-effort version of the world used for responsiveness. It’s allowed to be wrong, as long as the authority can correct it without breaking trust.
+
+The boundary is simple:
+
+- **Safe to simulate locally**: things that primarily affect *your* feel (your movement, camera, VFX/UI)
+- **Not safe to simulate locally as truth**: shared state other players coordinate on (objectives, heat, AI decisions, destruction)
+
+Two techniques cover most games: predict yourself, interpolate everyone else.
+
+#### Technique 1: Local prediction (you)
 
 **Prediction** is letting the client act immediately, based on what it expects the authority will decide.
 
@@ -114,7 +127,7 @@ When it goes wrong, you feel it as <PerplexityLink query="rubber banding smoothi
 
 <PredictionDemo />
 
-### Solution to Latency (for others): Interpolation
+#### Technique 2: Remote interpolation (everyone else)
 
 You can’t predict other players. You don’t know what they’ll do.
 
@@ -166,19 +179,21 @@ Echelon is co-op. The failure cost isn’t “competitive fairness.” The failu
 
 **Out of scope (for now):** matchmaking at scale, dedicated infra, competitive anti-cheat.
 
-### What does authority own vs what do clients fake?
+<AccordionSection title="Where we draw the trust boundary in Echelon" value="trust-boundary">
 
-Authority should own shared state that affects coordination:
+The authority owns shared state that affects coordination:
 
 - Objective state
 - Heat levels
 - AI decisions and positions
 - Destruction results
 
-Clients should be allowed to fake responsiveness where the authority can later correct safely:
+Clients simulate locally for responsiveness where the authority can later correct safely:
 
 - Your own movement
 - Visual feedback (effects, animations, UI)
+
+</AccordionSection>
 
 #### Learn more
 
